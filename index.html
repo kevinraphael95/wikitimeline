@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wiki Timeline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0e141c;
+    --bg-elevated: #141d28;
+    --card-bg: #1a2431;
+    --card-bg-hover: #202c3b;
+    --brass: #c9a35a;
+    --brass-light: #e6cb8f;
+    --brass-dim: rgba(201,163,90,0.28);
+    --text: #eae6da;
+    --text-muted: #8b93a3;
+    --success: #7fae7c;
+    --success-bg: rgba(127,174,124,0.12);
+    --error: #c1725a;
+    --error-bg: rgba(193,114,90,0.12);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse 900px 500px at 20% -10%, rgba(201,163,90,0.07), transparent 60%),
+      radial-gradient(ellipse 700px 600px at 100% 100%, rgba(201,163,90,0.05), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Spectral', serif;
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    padding:32px 16px 64px;
+  }
+  .app{width:100%;max-width:640px;}
+
+  /* ---- Header ---- */
+  .eyebrow{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.28em;
+    text-transform:uppercase;
+    color:var(--brass);
+    text-align:center;
+    margin-bottom:10px;
+  }
+  h1{
+    font-size:clamp(30px, 6vw, 42px);
+    font-weight:600;
+    text-align:center;
+    margin:0 0 8px;
+    letter-spacing:0.01em;
+  }
+  h1 em{ font-style:italic; color:var(--brass-light); }
+  .subtitle{
+    text-align:center;
+    color:var(--text-muted);
+    font-size:15px;
+    max-width:460px;
+    margin:0 auto 36px;
+    line-height:1.5;
+  }
+  .subtitle strong{ color:var(--text); font-weight:600; }
+
+  /* ---- Status / controls row ---- */
+  .toolbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    margin-bottom:18px;
+  }
+  .status{
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    color:var(--text-muted);
+    letter-spacing:0.02em;
+  }
+  button{
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    cursor:pointer;
+    border-radius:3px;
+    padding:10px 16px;
+    border:1px solid var(--brass-dim);
+    background:transparent;
+    color:var(--brass-light);
+    transition:background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
+  }
+  button:hover:not(:disabled){ background:rgba(201,163,90,0.1); border-color:var(--brass); }
+  button:disabled{ opacity:0.35; cursor:default; }
+  .btn-primary{
+    background:var(--brass);
+    color:#181008;
+    border-color:var(--brass);
+    font-weight:700;
+  }
+  .btn-primary:hover:not(:disabled){ background:var(--brass-light); border-color:var(--brass-light); }
+
+  /* ---- Timeline board ---- */
+  .board-wrap{
+    display:flex;
+    gap:14px;
+    margin-bottom:8px;
+  }
+  .rail{
+    position:relative;
+    width:34px;
+    flex:none;
+  }
+  .rail-line{
+    position:absolute;
+    left:16px;
+    top:8px;
+    bottom:8px;
+    width:2px;
+    background:linear-gradient(var(--brass-dim), var(--brass-dim));
+  }
+  .tick{
+    position:absolute;
+    left:0;
+    width:34px;
+    height:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .tick::before{
+    content:'';
+    position:absolute;
+    left:9px;
+    width:16px;
+    height:2px;
+    background:var(--brass);
+    border-radius:2px;
+    opacity:0.55;
+  }
+  .tick .year-label{
+    position:absolute;
+    left:34px;
+    white-space:nowrap;
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    color:var(--brass-light);
+    opacity:0;
+    transform:translateX(-4px);
+    transition:opacity 0.4s ease, transform 0.4s ease;
+  }
+  .tick.revealed .year-label{ opacity:1; transform:translateX(0); }
+  .tick.revealed::before{ opacity:1; background:var(--brass-light); }
+
+  #board{
+    position:relative;
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    min-height:40px;
+  }
+
+  .card{
+    background:var(--card-bg);
+    border:1px solid rgba(255,255,255,0.06);
+    border-radius:6px;
+    height:96px;
+    display:flex;
+    align-items:stretch;
+    gap:12px;
+    padding:10px 14px 10px 8px;
+    cursor:grab;
+    user-select:none;
+    touch-action:none;
+    transition:background 0.15s, border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+  }
+  .card:hover{ background:var(--card-bg-hover); }
+  .card.dragging{
+    cursor:grabbing;
+    z-index:20;
+    box-shadow:0 12px 28px rgba(0,0,0,0.45);
+    border-color:var(--brass);
+    opacity:0.96;
+  }
+  .card.correct{ border-color:var(--success); background:var(--success-bg); }
+  .card.wrong{ border-color:var(--error); background:var(--error-bg); }
+
+  .handle{
+    flex:none;
+    width:18px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    color:var(--text-muted);
+    font-size:16px;
+    letter-spacing:2px;
+    line-height:1;
+  }
+  .thumb{
+    flex:none;
+    width:76px;
+    height:76px;
+    border-radius:4px;
+    background:var(--bg-elevated);
+    overflow:hidden;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:30px;
+    margin:auto 0;
+  }
+  .thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+
+  .card-body{
+    flex:1;
+    min-width:0;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    gap:3px;
+  }
+  .card-title{
+    font-size:16px;
+    font-weight:600;
+    color:var(--text);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .card-extract{
+    font-size:12.5px;
+    color:var(--text-muted);
+    line-height:1.35;
+    display:-webkit-box;
+    -webkit-line-clamp:2;
+    -webkit-box-orient:vertical;
+    overflow:hidden;
+  }
+  .card-feedback{
+    flex:none;
+    display:flex;
+    align-items:center;
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    font-weight:700;
+    min-width:20px;
+    justify-content:center;
+  }
+  .card-feedback.correct{ color:var(--success); }
+  .card-feedback.wrong{ color:var(--error); }
+
+  .arrows{
+    flex:none;
+    display:none;
+    flex-direction:column;
+    gap:2px;
+    justify-content:center;
+  }
+  .arrows button{
+    padding:2px 6px;
+    font-size:10px;
+    line-height:1;
+  }
+  @media (max-width:520px){
+    .arrows{ display:flex; }
+    .card-extract{ display:none; }
+    .thumb{ width:60px; height:60px; }
+  }
+
+  .result-banner{
+    margin-top:22px;
+    padding:16px 18px;
+    border-radius:6px;
+    font-family:'JetBrains Mono', monospace;
+    font-size:13px;
+    text-align:center;
+    display:none;
+    letter-spacing:0.02em;
+  }
+  .result-banner.show{ display:block; }
+  .result-banner.win{ background:var(--success-bg); color:var(--success); border:1px solid var(--success); }
+  .result-banner.lose{ background:var(--error-bg); color:var(--error); border:1px solid var(--error); }
+
+  .loading{
+    text-align:center;
+    color:var(--text-muted);
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    padding:60px 0;
+    letter-spacing:0.05em;
+  }
+  .loading .spinner{
+    display:inline-block;
+    width:14px;height:14px;
+    border-radius:50%;
+    border:2px solid var(--brass-dim);
+    border-top-color:var(--brass);
+    animation:spin 0.8s linear infinite;
+    margin-right:8px;
+    vertical-align:-2px;
+  }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  footer{
+    text-align:center;
+    margin-top:40px;
+    font-size:11px;
+    color:var(--text-muted);
+    font-family:'JetBrains Mono', monospace;
+    letter-spacing:0.04em;
+  }
+  footer a{ color:var(--brass); text-decoration:none; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="eyebrow">Chronomètre encyclopédique</div>
+  <h1>Wiki <em>Timeline</em></h1>
+  <p class="subtitle">
+    Cinq faits tirés de <strong>Wikipédia</strong> t'attendent, dans le désordre.
+    Fais-les glisser pour les remettre du <strong>plus ancien</strong> (en haut) au <strong>plus récent</strong> (en bas).
+  </p>
+
+  <div class="toolbar">
+    <span class="status" id="status">Chargement…</span>
+    <div style="display:flex; gap:8px;">
+      <button id="validateBtn" disabled>Valider l'ordre</button>
+      <button id="newGameBtn" class="btn-primary">Nouvelle partie</button>
+    </div>
+  </div>
+
+  <div id="loading" class="loading"><span class="spinner"></span>Interrogation de Wikipédia…</div>
+
+  <div class="board-wrap" id="boardWrap" style="display:none;">
+    <div class="rail" id="rail"></div>
+    <div id="board"></div>
+  </div>
+
+  <div class="result-banner" id="resultBanner"></div>
+
+  <footer>Données via l'API REST de <a href="https://fr.wikipedia.org" target="_blank" rel="noopener">Wikipédia</a></footer>
+</div>
+
+<script>
+(function(){
+
+// ---------------------------------------------------------------
+// Pool of candidate entries: people, events, inventions.
+// year: negative = BC. wiki: article title on fr.wikipedia.org
+// ---------------------------------------------------------------
+const POOL = [
+  { emoji:'🏛️', title:'Fondation de Rome', wiki:'Rome', year:-753 },
+  { emoji:'👑', title:'Naissance de Cléopâtre', wiki:'Cléopâtre VII', year:-69 },
+  { emoji:'⚔️', title:'Naissance de Jules César', wiki:'Jules César', year:-100 },
+  { emoji:'🏰', title:'Charlemagne couronné empereur', wiki:'Charlemagne', year:800 },
+  { emoji:'🌍', title:'Chute de l\'Empire romain d\'Occident', wiki:'Chute de l\'Empire romain d\'Occident', year:476 },
+  { emoji:'🖨️', title:'Invention de l\'imprimerie', wiki:'Gutenberg', year:1450 },
+  { emoji:'🎨', title:'Naissance de Léonard de Vinci', wiki:'Léonard de Vinci', year:1452 },
+  { emoji:'⛵', title:'Découverte de l\'Amérique par Colomb', wiki:'Christophe Colomb', year:1492 },
+  { emoji:'🎭', title:'Naissance de William Shakespeare', wiki:'William Shakespeare', year:1564 },
+  { emoji:'🧑', title:'Naissance d\'Isaac Newton', wiki:'Isaac Newton', year:1643 },
+  { emoji:'📷', title:'Invention de la photographie', wiki:'Nicéphore Niépce', year:1826 },
+  { emoji:'⚡', title:'Invention de la pile électrique', wiki:'Alessandro Volta', year:1800 },
+  { emoji:'🇫🇷', title:'Révolution française', wiki:'Révolution française', year:1789 },
+  { emoji:'🎩', title:'Naissance de Napoléon Bonaparte', wiki:'Napoléon Ier', year:1769 },
+  { emoji:'🧬', title:'Naissance de Charles Darwin', wiki:'Charles Darwin', year:1809 },
+  { emoji:'📖', title:'Publication de "L\'Origine des espèces"', wiki:'L\'Origine des espèces', year:1859 },
+  { emoji:'🔬', title:'Naissance de Marie Curie', wiki:'Marie Curie', year:1867 },
+  { emoji:'🕊️', title:'Naissance du Mahatma Gandhi', wiki:'Mahatma Gandhi', year:1869 },
+  { emoji:'☎️', title:'Invention du téléphone', wiki:'Alexander Graham Bell', year:1876 },
+  { emoji:'💡', title:'Invention de l\'ampoule électrique', wiki:'Thomas Edison', year:1879 },
+  { emoji:'🧠', title:'Naissance d\'Albert Einstein', wiki:'Albert Einstein', year:1879 },
+  { emoji:'🚗', title:'Invention de l\'automobile moderne', wiki:'Karl Benz', year:1886 },
+  { emoji:'✈️', title:'Premier vol des frères Wright', wiki:'Frères Wright', year:1903 },
+  { emoji:'🚢', title:'Naufrage du Titanic', wiki:'Titanic', year:1912 },
+  { emoji:'💥', title:'Début de la Première Guerre mondiale', wiki:'Première Guerre mondiale', year:1914 },
+  { emoji:'🦠', title:'Découverte de la pénicilline', wiki:'Pénicilline', year:1928 },
+  { emoji:'⚫', title:'Début de la Seconde Guerre mondiale', wiki:'Seconde Guerre mondiale', year:1939 },
+  { emoji:'🛰️', title:'Lancement de Spoutnik 1', wiki:'Spoutnik 1', year:1957 },
+  { emoji:'✊', title:'Discours "I Have a Dream" de M.L. King', wiki:'Martin Luther King', year:1963 },
+  { emoji:'🌙', title:'Premier pas sur la Lune', wiki:'Apollo 11', year:1969 },
+  { emoji:'🧱', title:'Chute du mur de Berlin', wiki:'Chute du mur de Berlin', year:1989 },
+  { emoji:'💻', title:'Invention du World Wide Web', wiki:'World Wide Web', year:1989 },
+  { emoji:'📱', title:'Sortie du premier iPhone', wiki:'IPhone', year:2007 },
+  { emoji:'🕯️', title:'Attentats du 11 septembre', wiki:'Attentats du 11 septembre 2001', year:2001 },
+];
+
+const CARD_H = 96;   // must match .card height in CSS
+const GAP = 14;       // must match #board gap in CSS
+
+let order = [];        // current visual order, array of item objects (with data attached)
+let solved = false;
+
+const statusEl = document.getElementById('status');
+const loadingEl = document.getElementById('loading');
+const boardWrapEl = document.getElementById('boardWrap');
+const boardEl = document.getElementById('board');
+const railEl = document.getElementById('rail');
+const validateBtn = document.getElementById('validateBtn');
+const newGameBtn = document.getElementById('newGameBtn');
+const resultBanner = document.getElementById('resultBanner');
+
+function formatYear(y){
+  const mono = n => n; // keep as number
+  if (y < 0) return `${Math.abs(y)} av. J.-C.`;
+  return `an ${y}`;
+}
+
+function shuffle(arr){
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function pickFive(){
+  const shuffled = shuffle(POOL);
+  const chosen = [];
+  const usedYears = new Set();
+  for (const item of shuffled){
+    if (chosen.length >= 5) break;
+    if (usedYears.has(item.year)) continue;
+    usedYears.add(item.year);
+    chosen.push(item);
+  }
+  return chosen;
+}
+
+async function fetchSummary(item){
+  try {
+    const res = await fetch(`https://fr.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(item.wiki)}`);
+    if (!res.ok) throw new Error('bad response');
+    const data = await res.json();
+    return {
+      extract: data.extract || '',
+      thumb: (data.thumbnail && data.thumbnail.source) ? data.thumbnail.source : null,
+    };
+  } catch (e) {
+    return { extract: '', thumb: null };
+  }
+}
+
+function buildRail(n){
+  railEl.innerHTML = '<div class="rail-line"></div>';
+  for (let i = 0; i < n; i++){
+    const tick = document.createElement('div');
+    tick.className = 'tick';
+    tick.style.top = (i * (CARD_H + GAP) + CARD_H/2) + 'px';
+    tick.dataset.index = i;
+    const label = document.createElement('span');
+    label.className = 'year-label';
+    tick.appendChild(label);
+    railEl.appendChild(tick);
+  }
+  railEl.style.height = (n * CARD_H + (n-1) * GAP) + 'px';
+}
+
+function revealYear(index, text){
+  const tick = railEl.querySelector(`.tick[data-index="${index}"]`);
+  if (!tick) return;
+  tick.classList.add('revealed');
+  tick.querySelector('.year-label').textContent = text;
+}
+
+function clearReveal(){
+  railEl.querySelectorAll('.tick').forEach(t => {
+    t.classList.remove('revealed');
+    t.querySelector('.year-label').textContent = '';
+  });
+}
+
+function render(){
+  boardEl.innerHTML = '';
+  order.forEach((item, idx) => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.id = item._id;
+
+    const handle = document.createElement('div');
+    handle.className = 'handle';
+    handle.textContent = '⠿';
+
+    const thumb = document.createElement('div');
+    thumb.className = 'thumb';
+    if (item.thumb) {
+      const img = document.createElement('img');
+      img.src = item.thumb;
+      img.alt = '';
+      thumb.appendChild(img);
+    } else {
+      thumb.textContent = item.emoji;
+    }
+
+    const body = document.createElement('div');
+    body.className = 'card-body';
+    const titleEl = document.createElement('div');
+    titleEl.className = 'card-title';
+    titleEl.textContent = `${item.emoji} ${item.title}`;
+    const extractEl = document.createElement('div');
+    extractEl.className = 'card-extract';
+    extractEl.textContent = item.extract || '';
+    body.appendChild(titleEl);
+    body.appendChild(extractEl);
+
+    const feedback = document.createElement('div');
+    feedback.className = 'card-feedback';
+    feedback.dataset.role = 'feedback';
+
+    const arrows = document.createElement('div');
+    arrows.className = 'arrows';
+    const upBtn = document.createElement('button');
+    upBtn.textContent = '▲';
+    upBtn.addEventListener('click', () => moveCard(idx, -1));
+    const downBtn = document.createElement('button');
+    downBtn.textContent = '▼';
+    downBtn.addEventListener('click', () => moveCard(idx, 1));
+    arrows.appendChild(upBtn);
+    arrows.appendChild(downBtn);
+
+    card.appendChild(handle);
+    card.appendChild(thumb);
+    card.appendChild(body);
+    card.appendChild(feedback);
+    card.appendChild(arrows);
+
+    attachDrag(card);
+    boardEl.appendChild(card);
+  });
+}
+
+function moveCard(idx, delta){
+  if (solved) return;
+  const newIdx = idx + delta;
+  if (newIdx < 0 || newIdx >= order.length) return;
+  const tmp = order[idx];
+  order[idx] = order[newIdx];
+  order[newIdx] = tmp;
+  render();
+}
+
+// ---- Pointer-based drag & drop reordering ----
+function attachDrag(card){
+  let dragging = false;
+  let startY = 0;
+  let originalIndex = 0;
+
+  card.addEventListener('pointerdown', (e) => {
+    if (solved) return;
+    if (e.target.closest('.arrows')) return; // let arrow buttons work independently
+    dragging = true;
+    startY = e.clientY;
+    originalIndex = Array.from(boardEl.children).indexOf(card);
+    card.setPointerCapture(e.pointerId);
+    card.classList.add('dragging');
+  });
+
+  card.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const dy = e.clientY - startY;
+    card.style.transform = `translateY(${dy}px)`;
+    card.style.transition = 'none';
+
+    const siblings = Array.from(boardEl.children).filter(c => c !== card);
+    const cardRect = card.getBoundingClientRect();
+    const cardCenter = cardRect.top + cardRect.height / 2;
+
+    for (const sib of siblings){
+      const r = sib.getBoundingClientRect();
+      const sibCenter = r.top + r.height / 2;
+      const sibIndex = Array.from(boardEl.children).indexOf(sib);
+      const curIndex = Array.from(boardEl.children).indexOf(card);
+      if (curIndex < sibIndex && cardCenter > sibCenter){
+        boardEl.insertBefore(sib, card);
+      } else if (curIndex > sibIndex && cardCenter < sibCenter){
+        boardEl.insertBefore(card, sib);
+      }
+    }
+  });
+
+  const endDrag = (e) => {
+    if (!dragging) return;
+    dragging = false;
+    card.classList.remove('dragging');
+    card.style.transform = '';
+    card.style.transition = '';
+    // sync `order` array to current DOM order
+    const idOrder = Array.from(boardEl.children).map(c => c.dataset.id);
+    order = idOrder.map(id => order.find(o => String(o._id) === id));
+  };
+
+  card.addEventListener('pointerup', endDrag);
+  card.addEventListener('pointercancel', endDrag);
+}
+
+function checkOrder(){
+  if (solved) return;
+  solved = true;
+  validateBtn.disabled = true;
+
+  const correctOrder = order.slice().sort((a,b) => a.year - b.year);
+  let allCorrect = true;
+
+  order.forEach((item, idx) => {
+    const card = boardEl.children[idx];
+    const feedback = card.querySelector('[data-role="feedback"]');
+    const isCorrect = correctOrder[idx]._id === item._id;
+    if (isCorrect){
+      card.classList.add('correct');
+      feedback.classList.add('correct');
+      feedback.textContent = '✓';
+    } else {
+      card.classList.add('wrong');
+      feedback.classList.add('wrong');
+      feedback.textContent = '✕';
+      allCorrect = false;
+    }
+    revealYear(idx, formatYear(item.year));
+  });
+
+  resultBanner.className = 'result-banner show ' + (allCorrect ? 'win' : 'lose');
+  resultBanner.textContent = allCorrect
+    ? '✓ Chronologie parfaite ! Bravo.'
+    : '✕ Pas tout à fait — regarde les dates révélées sur la règle à gauche.';
+
+  statusEl.textContent = allCorrect ? 'Partie gagnée' : 'Partie terminée';
+}
+
+async function newGame(){
+  solved = false;
+  resultBanner.className = 'result-banner';
+  clearReveal();
+  loadingEl.style.display = 'block';
+  boardWrapEl.style.display = 'none';
+  validateBtn.disabled = true;
+  newGameBtn.disabled = true;
+  statusEl.textContent = 'Chargement…';
+
+  const items = pickFive();
+  const enriched = await Promise.all(items.map(async (item, i) => {
+    const summary = await fetchSummary(item);
+    return Object.assign({}, item, summary, { _id: i + '-' + Date.now() });
+  }));
+
+  order = shuffle(enriched);
+  buildRail(order.length);
+  render();
+
+  loadingEl.style.display = 'none';
+  boardWrapEl.style.display = 'flex';
+  validateBtn.disabled = false;
+  newGameBtn.disabled = false;
+  statusEl.textContent = `${order.length} événements · glisse pour réordonner`;
+}
+
+validateBtn.addEventListener('click', checkOrder);
+newGameBtn.addEventListener('click', newGame);
+
+newGame();
+
+})();
+</script>
+</body>
+</html>
