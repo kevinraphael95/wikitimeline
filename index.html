@@ -158,13 +158,14 @@
   #board{
     position:relative;
     flex:1;
-    display:flex;
-    flex-direction:column;
-    gap:14px;
     min-height:40px;
   }
 
   .card{
+    position:absolute;
+    left:0;
+    right:0;
+    top:0;
     background:var(--card-bg);
     border:1px solid rgba(255,255,255,0.06);
     border-radius:6px;
@@ -176,7 +177,7 @@
     cursor:grab;
     user-select:none;
     touch-action:none;
-    transition:background 0.15s, border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+    transition:transform 200ms ease, background 0.15s, border-color 0.2s, box-shadow 0.2s;
   }
   .card:hover{ background:var(--card-bg-hover); }
   .card.dragging{
@@ -184,7 +185,8 @@
     z-index:20;
     box-shadow:0 12px 28px rgba(0,0,0,0.45);
     border-color:var(--brass);
-    opacity:0.96;
+    opacity:0.98;
+    transition:background 0.15s, border-color 0.2s, box-shadow 0.2s;
   }
   .card.correct{ border-color:var(--success); background:var(--success-bg); }
   .card.wrong{ border-color:var(--error); background:var(--error-bg); }
@@ -432,13 +434,31 @@ function pickFive(){
   return chosen;
 }
 
+const MONTHS = 'janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre';
+
+// Strip anything that could give away the date/century: full dates, standalone
+// 3-4 digit numbers (years), "av. J.-C." markers, and roman-numeral centuries.
+function sanitizeExtract(text){
+  if (!text) return '';
+  let t = text;
+  t = t.replace(new RegExp(`\\b\\d{1,2}(er)?\\s+(${MONTHS})\\s+\\d{1,4}\\b`, 'gi'), '—');
+  t = t.replace(new RegExp(`(${MONTHS})\\s+\\d{1,4}\\b`, 'gi'), '$1 —');
+  t = t.replace(/\b\d{1,4}\b/g, '—');
+  t = t.replace(/—\s*av\.?\s*J\.?-?C\.?/gi, '—');
+  t = t.replace(/\b(I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII|XIII|XIV|XV|XVI|XVII|XVIII|XIX|XX|XXI)e?\s+si[eè]cle\b/gi, 'siècle —');
+  t = t.replace(/(—\s*){2,}/g, '— ');
+  t = t.replace(/\s{2,}/g, ' ').trim();
+  return t;
+}
+
 async function fetchSummary(item){
   try {
     const res = await fetch(`https://fr.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(item.wiki)}`);
     if (!res.ok) throw new Error('bad response');
     const data = await res.json();
+    const raw = (data.extract || '').split('. ').slice(0, 2).join('. ');
     return {
-      extract: data.extract || '',
+      extract: sanitizeExtract(raw),
       thumb: (data.thumbnail && data.thumbnail.source) ? data.thumbnail.source : null,
     };
   } catch (e) {
@@ -475,12 +495,30 @@ function clearReveal(){
   });
 }
 
+let cardEls = {}; // id -> DOM element, persistent across a game (no full re-render while dragging)
+
+function slotY(index){ return index * (CARD_H + GAP); }
+
+// Re-position every card (except the one currently being dragged, which
+// follows the pointer directly) to match its index in `order`.
+function layout(excludeId){
+  order.forEach((item, i) => {
+    if (item._id === excludeId) return;
+    const el = cardEls[item._id];
+    if (el) el.style.transform = `translateY(${slotY(i)}px)`;
+  });
+}
+
 function render(){
   boardEl.innerHTML = '';
-  order.forEach((item, idx) => {
+  cardEls = {};
+  boardEl.style.height = (slotY(order.length - 1) + CARD_H) + 'px';
+
+  order.forEach((item) => {
     const card = document.createElement('div');
     card.className = 'card';
     card.dataset.id = item._id;
+    card.style.transition = 'none'; // avoid slide-in animation on first paint
 
     const handle = document.createElement('div');
     handle.className = 'handle';
@@ -516,10 +554,10 @@ function render(){
     arrows.className = 'arrows';
     const upBtn = document.createElement('button');
     upBtn.textContent = '▲';
-    upBtn.addEventListener('click', () => moveCard(idx, -1));
+    upBtn.addEventListener('click', () => moveCard(item._id, -1));
     const downBtn = document.createElement('button');
     downBtn.textContent = '▼';
-    downBtn.addEventListener('click', () => moveCard(idx, 1));
+    downBtn.addEventListener('click', () => moveCard(item._id, 1));
     arrows.appendChild(upBtn);
     arrows.appendChild(downBtn);
 
@@ -529,73 +567,76 @@ function render(){
     card.appendChild(feedback);
     card.appendChild(arrows);
 
-    attachDrag(card);
+    cardEls[item._id] = card;
     boardEl.appendChild(card);
+    attachDrag(card, item);
+  });
+
+  layout(null);
+
+  // Let the initial position apply instantly, then re-enable smooth
+  // transitions for every future move.
+  requestAnimationFrame(() => {
+    Object.values(cardEls).forEach(el => { el.style.transition = ''; });
   });
 }
 
-function moveCard(idx, delta){
+function moveCard(id, delta){
   if (solved) return;
+  const idx = order.findIndex(o => o._id === id);
   const newIdx = idx + delta;
   if (newIdx < 0 || newIdx >= order.length) return;
   const tmp = order[idx];
   order[idx] = order[newIdx];
   order[newIdx] = tmp;
-  render();
+  layout(null);
 }
 
 // ---- Pointer-based drag & drop reordering ----
-function attachDrag(card){
-  let dragging = false;
-  let startY = 0;
-  let originalIndex = 0;
-
+// Cards are absolutely positioned by slot index (slotY). While dragging,
+// the card's transform is driven directly by the pointer; every other card
+// smoothly animates (CSS transition) to its new slot whenever the dragged
+// card crosses a slot boundary. This avoids the jumpiness of DOM reordering.
+function attachDrag(card, item){
   card.addEventListener('pointerdown', (e) => {
     if (solved) return;
     if (e.target.closest('.arrows')) return; // let arrow buttons work independently
-    dragging = true;
-    startY = e.clientY;
-    originalIndex = Array.from(boardEl.children).indexOf(card);
+
+    const startClientY = e.clientY;
+    const startIndex = order.findIndex(o => o._id === item._id);
+    const startTranslate = slotY(startIndex);
+    const maxTranslate = slotY(order.length - 1);
+
     card.setPointerCapture(e.pointerId);
     card.classList.add('dragging');
-  });
 
-  card.addEventListener('pointermove', (e) => {
-    if (!dragging) return;
-    const dy = e.clientY - startY;
-    card.style.transform = `translateY(${dy}px)`;
-    card.style.transition = 'none';
+    function onMove(ev){
+      const dy = ev.clientY - startClientY;
+      const t = Math.max(0, Math.min(maxTranslate, startTranslate + dy));
+      card.style.transform = `translateY(${t}px)`;
 
-    const siblings = Array.from(boardEl.children).filter(c => c !== card);
-    const cardRect = card.getBoundingClientRect();
-    const cardCenter = cardRect.top + cardRect.height / 2;
-
-    for (const sib of siblings){
-      const r = sib.getBoundingClientRect();
-      const sibCenter = r.top + r.height / 2;
-      const sibIndex = Array.from(boardEl.children).indexOf(sib);
-      const curIndex = Array.from(boardEl.children).indexOf(card);
-      if (curIndex < sibIndex && cardCenter > sibCenter){
-        boardEl.insertBefore(sib, card);
-      } else if (curIndex > sibIndex && cardCenter < sibCenter){
-        boardEl.insertBefore(card, sib);
+      const candidateIndex = Math.round(t / (CARD_H + GAP));
+      const currentIndex = order.findIndex(o => o._id === item._id);
+      if (candidateIndex !== currentIndex){
+        const [moved] = order.splice(currentIndex, 1);
+        order.splice(candidateIndex, 0, moved);
+        layout(item._id);
       }
     }
+
+    function onUp(){
+      card.classList.remove('dragging');
+      const finalIndex = order.findIndex(o => o._id === item._id);
+      card.style.transform = `translateY(${slotY(finalIndex)}px)`;
+      card.removeEventListener('pointermove', onMove);
+      card.removeEventListener('pointerup', onUp);
+      card.removeEventListener('pointercancel', onUp);
+    }
+
+    card.addEventListener('pointermove', onMove);
+    card.addEventListener('pointerup', onUp);
+    card.addEventListener('pointercancel', onUp);
   });
-
-  const endDrag = (e) => {
-    if (!dragging) return;
-    dragging = false;
-    card.classList.remove('dragging');
-    card.style.transform = '';
-    card.style.transition = '';
-    // sync `order` array to current DOM order
-    const idOrder = Array.from(boardEl.children).map(c => c.dataset.id);
-    order = idOrder.map(id => order.find(o => String(o._id) === id));
-  };
-
-  card.addEventListener('pointerup', endDrag);
-  card.addEventListener('pointercancel', endDrag);
 }
 
 function checkOrder(){
@@ -603,11 +644,11 @@ function checkOrder(){
   solved = true;
   validateBtn.disabled = true;
 
-  const correctOrder = order.slice().sort((a,b) => a.year - b.year);
+  const correctOrder = order.slice().sort((a, b) => a.year - b.year);
   let allCorrect = true;
 
   order.forEach((item, idx) => {
-    const card = boardEl.children[idx];
+    const card = cardEls[item._id];
     const feedback = card.querySelector('[data-role="feedback"]');
     const isCorrect = correctOrder[idx]._id === item._id;
     if (isCorrect){
