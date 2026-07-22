@@ -8,26 +8,49 @@
 <link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg: #0e141c;
+    --bg: #0b1017;
     --bg-elevated: #141d28;
-    --card-bg: #1a2431;
-    --card-bg-hover: #202c3b;
-    --brass: #c9a35a;
-    --brass-light: #e6cb8f;
-    --brass-dim: rgba(201,163,90,0.28);
-    --text: #eae6da;
-    --text-muted: #8b93a3;
-    --success: #7fae7c;
-    --success-bg: rgba(127,174,124,0.12);
-    --error: #c1725a;
-    --error-bg: rgba(193,114,90,0.12);
+    --card-bg: #1b2532;
+    --card-bg-hover: #223040;
+    --brass: #d4ad63;
+    --brass-light: #f0d69a;
+    --brass-dim: rgba(212,173,99,0.32);
+    --glow-1: rgba(212,173,99,0.08);
+    --glow-2: rgba(212,173,99,0.06);
+    --text: #f5f2e9;
+    --text-muted: #b7c0d1;
+    --success: #8fc48b;
+    --success-bg: rgba(143,196,139,0.14);
+    --error: #de9075;
+    --error-bg: rgba(222,144,117,0.14);
+    --border-soft: rgba(255,255,255,0.08);
+    color-scheme: dark;
+  }
+  :root[data-theme="light"]{
+    --bg: #f6f3ec;
+    --bg-elevated: #ece6d7;
+    --card-bg: #ffffff;
+    --card-bg-hover: #f6f1e6;
+    --brass: #8a6420;
+    --brass-light: #6b4d16;
+    --brass-dim: rgba(138,100,32,0.3);
+    --glow-1: rgba(138,100,32,0.06);
+    --glow-2: rgba(138,100,32,0.05);
+    --text: #1a1712;
+    --text-muted: #4a4536;
+    --success: #2f6b2c;
+    --success-bg: rgba(47,107,44,0.1);
+    --error: #9c3c22;
+    --error-bg: rgba(156,60,34,0.1);
+    --border-soft: rgba(0,0,0,0.08);
+    color-scheme: light;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
   body{
     background:
-      radial-gradient(ellipse 900px 500px at 20% -10%, rgba(201,163,90,0.07), transparent 60%),
-      radial-gradient(ellipse 700px 600px at 100% 100%, rgba(201,163,90,0.05), transparent 60%),
+      radial-gradient(ellipse 900px 500px at 20% -10%, var(--glow-1), transparent 60%),
+      radial-gradient(ellipse 700px 600px at 100% 100%, var(--glow-2), transparent 60%),
       var(--bg);
     color:var(--text);
     font-family:'Spectral', serif;
@@ -35,8 +58,26 @@
     display:flex;
     justify-content:center;
     padding:32px 16px 64px;
+    transition:background 0.25s ease, color 0.25s ease;
   }
-  .app{width:100%;max-width:640px;}
+  .app{width:100%;max-width:640px; position:relative;}
+
+  .theme-toggle{
+    position:fixed;
+    top:18px;
+    right:18px;
+    width:38px;
+    height:38px;
+    padding:0;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:16px;
+    background:var(--card-bg);
+    border:1px solid var(--brass-dim);
+    z-index:30;
+  }
 
   /* ---- Header ---- */
   .eyebrow{
@@ -93,7 +134,7 @@
     color:var(--brass-light);
     transition:background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
   }
-  button:hover:not(:disabled){ background:rgba(201,163,90,0.1); border-color:var(--brass); }
+  button:hover:not(:disabled){ background:var(--brass-dim); border-color:var(--brass); }
   button:disabled{ opacity:0.35; cursor:default; }
   .btn-primary{
     background:var(--brass);
@@ -140,20 +181,9 @@
     background:var(--brass);
     border-radius:2px;
     opacity:0.55;
+    transition:opacity 0.4s ease, width 0.4s ease, background 0.4s ease;
   }
-  .tick .year-label{
-    position:absolute;
-    left:34px;
-    white-space:nowrap;
-    font-family:'JetBrains Mono', monospace;
-    font-size:11px;
-    color:var(--brass-light);
-    opacity:0;
-    transform:translateX(-4px);
-    transition:opacity 0.4s ease, transform 0.4s ease;
-  }
-  .tick.revealed .year-label{ opacity:1; transform:translateX(0); }
-  .tick.revealed::before{ opacity:1; background:var(--brass-light); }
+  .tick.revealed::before{ opacity:1; background:var(--brass-light); width:20px; }
 
   #board{
     position:relative;
@@ -167,7 +197,7 @@
     right:0;
     top:0;
     background:var(--card-bg);
-    border:1px solid rgba(255,255,255,0.06);
+    border:1px solid var(--border-soft);
     border-radius:6px;
     height:96px;
     display:flex;
@@ -245,15 +275,29 @@
   .card-feedback{
     flex:none;
     display:flex;
+    flex-direction:column;
     align-items:center;
-    font-family:'JetBrains Mono', monospace;
-    font-size:12px;
-    font-weight:700;
-    min-width:20px;
     justify-content:center;
+    gap:2px;
+    font-family:'JetBrains Mono', monospace;
+    min-width:0;
   }
-  .card-feedback.correct{ color:var(--success); }
-  .card-feedback.wrong{ color:var(--error); }
+  .card-feedback .fb-year{
+    font-size:11px;
+    font-weight:600;
+    white-space:nowrap;
+    opacity:0;
+    transform:translateY(-2px);
+    transition:opacity 0.3s ease, transform 0.3s ease;
+  }
+  .card-feedback .fb-mark{
+    font-size:15px;
+    font-weight:700;
+    line-height:1;
+  }
+  .card-feedback.correct .fb-year, .card-feedback.correct .fb-mark{ color:var(--success); }
+  .card-feedback.wrong .fb-year, .card-feedback.wrong .fb-mark{ color:var(--error); }
+  .card-feedback.correct .fb-year, .card-feedback.wrong .fb-year{ opacity:1; transform:translateY(0); }
 
   .arrows{
     flex:none;
@@ -267,10 +311,32 @@
     font-size:10px;
     line-height:1;
   }
+
+  /* ---- Mobile ---- */
+  @media (max-width:640px){
+    body{ padding:20px 10px 48px; }
+    .toolbar{ flex-wrap:wrap; row-gap:10px; }
+    .board-wrap{ gap:8px; }
+    .rail{ width:16px; }
+    .rail-line{ left:7px; }
+    .tick{ width:16px; }
+    .tick::before{ left:0; width:12px; }
+    .tick.revealed::before{ width:14px; }
+  }
   @media (max-width:520px){
     .arrows{ display:flex; }
     .card-extract{ display:none; }
     .thumb{ width:60px; height:60px; }
+    .card{ padding:8px 10px 8px 4px; gap:8px; }
+    .card-title{ font-size:14.5px; }
+    h1{ margin-bottom:6px; }
+    .subtitle{ font-size:13.5px; margin-bottom:26px; }
+  }
+  @media (max-width:400px){
+    .rail{ display:none; }
+    .handle{ width:12px; font-size:14px; }
+    .thumb{ width:50px; height:50px; font-size:22px; }
+    .card-feedback .fb-year{ font-size:10px; }
   }
 
   .result-banner{
@@ -320,11 +386,11 @@
 </head>
 <body>
 <div class="app">
+  <button id="themeToggle" class="theme-toggle" aria-label="Basculer entre mode clair et sombre" title="Mode clair / sombre">🌙</button>
   <div class="eyebrow">Chronomètre encyclopédique</div>
   <h1>Wiki <em>Timeline</em></h1>
   <p class="subtitle">
-    Cinq faits tirés de <strong>Wikipédia</strong> t'attendent, dans le désordre.
-    Fais-les glisser pour les remettre du <strong>plus ancien</strong> (en haut) au <strong>plus récent</strong> (en bas).
+    Remets ces cinq faits tirés de <strong>Wikipédia</strong> du <strong>plus ancien</strong> (en haut) au <strong>plus récent</strong> (en bas).
   </p>
 
   <div class="toolbar">
@@ -396,6 +462,18 @@ const GAP = 14;       // must match #board gap in CSS
 
 let order = [];        // current visual order, array of item objects (with data attached)
 let solved = false;
+
+const themeToggle = document.getElementById('themeToggle');
+function applyTheme(theme){
+  document.documentElement.dataset.theme = theme;
+  themeToggle.textContent = theme === 'light' ? '☀️' : '🌙';
+}
+let currentTheme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+applyTheme(currentTheme);
+themeToggle.addEventListener('click', () => {
+  currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+  applyTheme(currentTheme);
+});
 
 const statusEl = document.getElementById('status');
 const loadingEl = document.getElementById('loading');
@@ -473,26 +551,20 @@ function buildRail(n){
     tick.className = 'tick';
     tick.style.top = (i * (CARD_H + GAP) + CARD_H/2) + 'px';
     tick.dataset.index = i;
-    const label = document.createElement('span');
-    label.className = 'year-label';
-    tick.appendChild(label);
     railEl.appendChild(tick);
   }
   railEl.style.height = (n * CARD_H + (n-1) * GAP) + 'px';
 }
 
-function revealYear(index, text){
+// The rail ticks are purely decorative (they just light up); the actual
+// revealed date is shown directly on its card so nothing overlaps the text.
+function revealTick(index){
   const tick = railEl.querySelector(`.tick[data-index="${index}"]`);
-  if (!tick) return;
-  tick.classList.add('revealed');
-  tick.querySelector('.year-label').textContent = text;
+  if (tick) tick.classList.add('revealed');
 }
 
 function clearReveal(){
-  railEl.querySelectorAll('.tick').forEach(t => {
-    t.classList.remove('revealed');
-    t.querySelector('.year-label').textContent = '';
-  });
+  railEl.querySelectorAll('.tick').forEach(t => t.classList.remove('revealed'));
 }
 
 let cardEls = {}; // id -> DOM element, persistent across a game (no full re-render while dragging)
@@ -549,6 +621,12 @@ function render(){
     const feedback = document.createElement('div');
     feedback.className = 'card-feedback';
     feedback.dataset.role = 'feedback';
+    const fbYear = document.createElement('span');
+    fbYear.className = 'fb-year';
+    const fbMark = document.createElement('span');
+    fbMark.className = 'fb-mark';
+    feedback.appendChild(fbYear);
+    feedback.appendChild(fbMark);
 
     const arrows = document.createElement('div');
     arrows.className = 'arrows';
@@ -650,24 +728,27 @@ function checkOrder(){
   order.forEach((item, idx) => {
     const card = cardEls[item._id];
     const feedback = card.querySelector('[data-role="feedback"]');
+    const fbYear = feedback.querySelector('.fb-year');
+    const fbMark = feedback.querySelector('.fb-mark');
     const isCorrect = correctOrder[idx]._id === item._id;
+    fbYear.textContent = formatYear(item.year);
     if (isCorrect){
       card.classList.add('correct');
       feedback.classList.add('correct');
-      feedback.textContent = '✓';
+      fbMark.textContent = '✓';
     } else {
       card.classList.add('wrong');
       feedback.classList.add('wrong');
-      feedback.textContent = '✕';
+      fbMark.textContent = '✕';
       allCorrect = false;
     }
-    revealYear(idx, formatYear(item.year));
+    revealTick(idx);
   });
 
   resultBanner.className = 'result-banner show ' + (allCorrect ? 'win' : 'lose');
   resultBanner.textContent = allCorrect
     ? '✓ Chronologie parfaite ! Bravo.'
-    : '✕ Pas tout à fait — regarde les dates révélées sur la règle à gauche.';
+    : '✕ Pas tout à fait — regarde les dates qui viennent d\'apparaître sur chaque carte.';
 
   statusEl.textContent = allCorrect ? 'Partie gagnée' : 'Partie terminée';
 }
