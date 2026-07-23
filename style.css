@@ -71,15 +71,6 @@ body{
 }
 
 /* ---- Header ---- */
-.eyebrow{
-  font-family:'JetBrains Mono', monospace;
-  font-size:11px;
-  letter-spacing:0.28em;
-  text-transform:uppercase;
-  color:var(--brass);
-  text-align:center;
-  margin-bottom:10px;
-}
 h1{
   font-size:clamp(30px, 6vw, 42px);
   font-weight:600;
