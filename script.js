@@ -64,22 +64,10 @@ async function fetchDailyEvents(){
   return data.events || [];
 }
 
-const MAX_TITLE_LEN = 46; // filet de sécurité, rarement déclenché
-
-function shortenTitle(text){
-  let t = (text || '').trim();
-  if (t.length <= MAX_TITLE_LEN) return t;
-  t = t.slice(0, MAX_TITLE_LEN);
-  const lastSpace = t.lastIndexOf(' ');
-  if (lastSpace > 20) t = t.slice(0, lastSpace);
-  return t.trim() + '…';
-}
-
-function formatEventText(text){
+function formatEventTitle(text){
   if (!text) return '';
-  let t = text.trim();
-  t = t.charAt(0).toUpperCase() + t.slice(1);
-  return t.replace(/\.$/, '');
+  const t = text.trim();
+  return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
 // Choisit 5 événements distincts (années différentes) parmi ceux qui ont
@@ -358,11 +346,12 @@ async function newGame(){
 
   const enriched = events.map((e, i) => {
     const page = e.pages[0];
+    const raw = (page.extract || '').split('. ').slice(0, 2).join('. ');
     return {
-      title: shortenTitle(page.title),
+      title: formatEventTitle(e.text),
       year: e.year,
       wiki: page.title,
-      extract: sanitizeExtract(formatEventText(e.text)),
+      extract: sanitizeExtract(raw),
       thumb: (page.thumbnail && page.thumbnail.source) ? page.thumbnail.source : null,
       emoji: DEFAULT_EMOJI,
       _id: i + '-' + Date.now(),
