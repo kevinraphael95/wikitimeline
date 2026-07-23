@@ -1,45 +1,11 @@
 (function(){
 
 // ---------------------------------------------------------------
-// Pool of candidate entries: people, events, inventions.
-// year: negative = BC. wiki: article title on fr.wikipedia.org
+// Aucune liste interne : tous les événements viennent en direct de
+// l'API "Éphéméride" (onthisday) de Wikipédia, pour une date aléatoire.
 // ---------------------------------------------------------------
-const POOL = [
-  { emoji:'🏛️', title:'Fondation de Rome', wiki:'Rome', year:-753 },
-  { emoji:'👑', title:'Naissance de Cléopâtre', wiki:'Cléopâtre VII', year:-69 },
-  { emoji:'⚔️', title:'Naissance de Jules César', wiki:'Jules César', year:-100 },
-  { emoji:'🏰', title:'Charlemagne couronné empereur', wiki:'Charlemagne', year:800 },
-  { emoji:'🌍', title:'Chute de l\'Empire romain d\'Occident', wiki:'Chute de l\'Empire romain d\'Occident', year:476 },
-  { emoji:'🖨️', title:'Invention de l\'imprimerie', wiki:'Gutenberg', year:1450 },
-  { emoji:'🎨', title:'Naissance de Léonard de Vinci', wiki:'Léonard de Vinci', year:1452 },
-  { emoji:'⛵', title:'Découverte de l\'Amérique par Colomb', wiki:'Christophe Colomb', year:1492 },
-  { emoji:'🎭', title:'Naissance de William Shakespeare', wiki:'William Shakespeare', year:1564 },
-  { emoji:'🧑', title:'Naissance d\'Isaac Newton', wiki:'Isaac Newton', year:1643 },
-  { emoji:'📷', title:'Invention de la photographie', wiki:'Nicéphore Niépce', year:1826 },
-  { emoji:'⚡', title:'Invention de la pile électrique', wiki:'Alessandro Volta', year:1800 },
-  { emoji:'🇫🇷', title:'Révolution française', wiki:'Révolution française', year:1789 },
-  { emoji:'🎩', title:'Naissance de Napoléon Bonaparte', wiki:'Napoléon Ier', year:1769 },
-  { emoji:'🧬', title:'Naissance de Charles Darwin', wiki:'Charles Darwin', year:1809 },
-  { emoji:'📖', title:'Publication de "L\'Origine des espèces"', wiki:'L\'Origine des espèces', year:1859 },
-  { emoji:'🔬', title:'Naissance de Marie Curie', wiki:'Marie Curie', year:1867 },
-  { emoji:'🕊️', title:'Naissance du Mahatma Gandhi', wiki:'Mahatma Gandhi', year:1869 },
-  { emoji:'☎️', title:'Invention du téléphone', wiki:'Alexander Graham Bell', year:1876 },
-  { emoji:'💡', title:'Invention de l\'ampoule électrique', wiki:'Thomas Edison', year:1879 },
-  { emoji:'🧠', title:'Naissance d\'Albert Einstein', wiki:'Albert Einstein', year:1879 },
-  { emoji:'🚗', title:'Invention de l\'automobile moderne', wiki:'Karl Benz', year:1886 },
-  { emoji:'✈️', title:'Premier vol des frères Wright', wiki:'Frères Wright', year:1903 },
-  { emoji:'🚢', title:'Naufrage du Titanic', wiki:'Titanic', year:1912 },
-  { emoji:'💥', title:'Début de la Première Guerre mondiale', wiki:'Première Guerre mondiale', year:1914 },
-  { emoji:'🦠', title:'Découverte de la pénicilline', wiki:'Pénicilline', year:1928 },
-  { emoji:'⚫', title:'Début de la Seconde Guerre mondiale', wiki:'Seconde Guerre mondiale', year:1939 },
-  { emoji:'🛰️', title:'Lancement de Spoutnik 1', wiki:'Spoutnik 1', year:1957 },
-  { emoji:'✊', title:'Discours "I Have a Dream" de M.L. King', wiki:'Martin Luther King', year:1963 },
-  { emoji:'🌙', title:'Premier pas sur la Lune', wiki:'Apollo 11', year:1969 },
-  { emoji:'🧱', title:'Chute du mur de Berlin', wiki:'Chute du mur de Berlin', year:1989 },
-  { emoji:'💻', title:'Invention du World Wide Web', wiki:'World Wide Web', year:1989 },
-  { emoji:'📱', title:'Sortie du premier iPhone', wiki:'IPhone', year:2007 },
-  { emoji:'🕯️', title:'Attentats du 11 septembre', wiki:'Attentats du 11 septembre 2001', year:2001 },
-];
+const DAYS_IN_MONTH = [31,28,31,30,31,30,31,31,30,31,30,31];
+const DEFAULT_EMOJI = '📜';
 
 const CARD_H = 96;   // must match .card height in CSS
 const GAP = 14;       // must match #board gap in CSS
@@ -83,17 +49,54 @@ function shuffle(arr){
   return a;
 }
 
-function pickFive(){
-  const shuffled = shuffle(POOL);
+function randomMonthDay(){
+  const month = Math.floor(Math.random() * 12) + 1;
+  const day = Math.floor(Math.random() * DAYS_IN_MONTH[month - 1]) + 1;
+  return { mm: String(month).padStart(2, '0'), dd: String(day).padStart(2, '0') };
+}
+
+// Récupère les événements "un jour comme aujourd'hui" pour une date au hasard.
+async function fetchDailyEvents(){
+  const { mm, dd } = randomMonthDay();
+  const res = await fetch(`https://fr.wikipedia.org/api/rest_v1/feed/onthisday/events/${mm}/${dd}`);
+  if (!res.ok) throw new Error('bad response');
+  const data = await res.json();
+  return data.events || [];
+}
+
+function formatEventTitle(text){
+  if (!text) return '';
+  const t = text.trim();
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+// Choisit 5 événements distincts (années différentes) parmi ceux qui ont
+// une page Wikipédia exploitable (extrait disponible).
+function selectFive(events){
+  const usable = shuffle(events).filter(e => e.year && e.pages && e.pages[0] && e.pages[0].extract);
   const chosen = [];
   const usedYears = new Set();
-  for (const item of shuffled){
+  for (const e of usable){
     if (chosen.length >= 5) break;
-    if (usedYears.has(item.year)) continue;
-    usedYears.add(item.year);
-    chosen.push(item);
+    if (usedYears.has(e.year)) continue;
+    usedYears.add(e.year);
+    chosen.push(e);
   }
   return chosen;
+}
+
+// Retire jusqu'à obtenir 5 événements exploitables, en essayant plusieurs
+// dates au hasard si besoin (une journée donnée n'a pas toujours assez
+// d'événements avec extrait + année distincte).
+async function pickFiveFromApi(){
+  for (let attempt = 0; attempt < 8; attempt++){
+    try {
+      const events = await fetchDailyEvents();
+      const chosen = selectFive(events);
+      if (chosen.length >= 5) return chosen;
+    } catch (e) { /* on retente avec une autre date */ }
+  }
+  return [];
 }
 
 const MONTHS = 'janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre';
@@ -111,21 +114,6 @@ function sanitizeExtract(text){
   t = t.replace(/(—\s*){2,}/g, '— ');
   t = t.replace(/\s{2,}/g, ' ').trim();
   return t;
-}
-
-async function fetchSummary(item){
-  try {
-    const res = await fetch(`https://fr.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(item.wiki)}`);
-    if (!res.ok) throw new Error('bad response');
-    const data = await res.json();
-    const raw = (data.extract || '').split('. ').slice(0, 2).join('. ');
-    return {
-      extract: sanitizeExtract(raw),
-      thumb: (data.thumbnail && data.thumbnail.source) ? data.thumbnail.source : null,
-    };
-  } catch (e) {
-    return { extract: '', thumb: null };
-  }
 }
 
 function buildRail(n){
@@ -347,11 +335,28 @@ async function newGame(){
   newGameBtn.disabled = true;
   statusEl.textContent = 'Chargement…';
 
-  const items = pickFive();
-  const enriched = await Promise.all(items.map(async (item, i) => {
-    const summary = await fetchSummary(item);
-    return Object.assign({}, item, summary, { _id: i + '-' + Date.now() });
-  }));
+  const events = await pickFiveFromApi();
+
+  if (events.length < 5){
+    loadingEl.style.display = 'none';
+    newGameBtn.disabled = false;
+    statusEl.textContent = 'Erreur de chargement — réessaie.';
+    return;
+  }
+
+  const enriched = events.map((e, i) => {
+    const page = e.pages[0];
+    const raw = (page.extract || '').split('. ').slice(0, 2).join('. ');
+    return {
+      title: formatEventTitle(e.text),
+      year: e.year,
+      wiki: page.title,
+      extract: sanitizeExtract(raw),
+      thumb: (page.thumbnail && page.thumbnail.source) ? page.thumbnail.source : null,
+      emoji: DEFAULT_EMOJI,
+      _id: i + '-' + Date.now(),
+    };
+  });
 
   order = shuffle(enriched);
   buildRail(order.length);
