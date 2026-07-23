@@ -64,15 +64,10 @@ async function fetchDailyEvents(){
   return data.events || [];
 }
 
-const MAX_TITLE_LEN = 46; // filet de sécurité, rarement déclenché
-
-function shortenTitle(text){
-  let t = (text || '').trim();
-  if (t.length <= MAX_TITLE_LEN) return t;
-  t = t.slice(0, MAX_TITLE_LEN);
-  const lastSpace = t.lastIndexOf(' ');
-  if (lastSpace > 20) t = t.slice(0, lastSpace);
-  return t.trim() + '…';
+function formatEventTitle(text){
+  if (!text) return '';
+  const t = text.trim();
+  return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
 // Choisit 5 événements distincts (années différentes) parmi ceux qui ont
@@ -102,6 +97,23 @@ async function pickFiveFromApi(){
     } catch (e) { /* on retente avec une autre date */ }
   }
   return [];
+}
+
+const MONTHS = 'janvier|février|mars|avril|mai|juin|juillet|août|septembre|octobre|novembre|décembre';
+
+// Strip anything that could give away the date/century: full dates, standalone
+// 3-4 digit numbers (years), "av. J.-C." markers, and roman-numeral centuries.
+function sanitizeExtract(text){
+  if (!text) return '';
+  let t = text;
+  t = t.replace(new RegExp(`\\b\\d{1,2}(er)?\\s+(${MONTHS})\\s+\\d{1,4}\\b`, 'gi'), '—');
+  t = t.replace(new RegExp(`(${MONTHS})\\s+\\d{1,4}\\b`, 'gi'), '$1 —');
+  t = t.replace(/\b\d{1,4}\b/g, '—');
+  t = t.replace(/—\s*av\.?\s*J\.?-?C\.?/gi, '—');
+  t = t.replace(/\b(I|II|III|IV|V|VI|VII|VIII|IX|X|XI|XII|XIII|XIV|XV|XVI|XVII|XVIII|XIX|XX|XXI)e?\s+si[eè]cle\b/gi, 'siècle —');
+  t = t.replace(/(—\s*){2,}/g, '— ');
+  t = t.replace(/\s{2,}/g, ' ').trim();
+  return t;
 }
 
 function buildRail(n){
@@ -172,7 +184,11 @@ function render(){
     const titleEl = document.createElement('div');
     titleEl.className = 'card-title';
     titleEl.textContent = `${item.emoji} ${item.title}`;
+    const extractEl = document.createElement('div');
+    extractEl.className = 'card-extract';
+    extractEl.textContent = item.extract || '';
     body.appendChild(titleEl);
+    body.appendChild(extractEl);
 
     const feedback = document.createElement('div');
     feedback.className = 'card-feedback';
@@ -330,10 +346,12 @@ async function newGame(){
 
   const enriched = events.map((e, i) => {
     const page = e.pages[0];
+    const raw = (page.extract || '').split('. ').slice(0, 2).join('. ');
     return {
-      title: shortenTitle(page.title),
+      title: formatEventTitle(e.text),
       year: e.year,
       wiki: page.title,
+      extract: sanitizeExtract(raw),
       thumb: (page.thumbnail && page.thumbnail.source) ? page.thumbnail.source : null,
       emoji: DEFAULT_EMOJI,
       _id: i + '-' + Date.now(),
