@@ -71,10 +71,40 @@ function formatEventTitle(text){
   return t.replace(/\.$/, '');
 }
 
+const MAX_TITLE_LEN = 100; // filet de sécurité pour les phrases très longues
+
+// Coupe au dernier mot complet avant la limite, jamais en plein mot.
+function truncateTitle(text){
+  if (!text || text.length <= MAX_TITLE_LEN) return text;
+  let t = text.slice(0, MAX_TITLE_LEN);
+  const lastSpace = t.lastIndexOf(' ');
+  if (lastSpace > 40) t = t.slice(0, lastSpace);
+  return t.trim() + '…';
+}
+
+// Événements récurrents (élections, JO, championnats...) : leur année n'est
+// pas déductible du contenu, ils sont donc trop faciles à deviner au hasard
+// ou impossibles à situer avec certitude. On les exclut.
+const RECURRING_KEYWORDS = [
+  'élection', 'référendum', 'referendum',
+  'jeux olympiques', 'jeux paralympiques',
+  'championnat du monde', "championnat d'europe", 'championnat de france',
+  'coupe du monde', 'coupe d\'europe', 'grand prix',
+  'festival de cannes', 'cérémonie des oscars', 'oscars',
+  'grammy', 'eurovision', 'sommet du g7', 'sommet du g20',
+];
+function isRecurringEvent(text){
+  if (!text) return false;
+  const t = text.toLowerCase();
+  return RECURRING_KEYWORDS.some(k => t.includes(k));
+}
+
 // Choisit 5 événements distincts (années différentes) parmi ceux qui ont
 // une page Wikipédia exploitable (extrait disponible).
 function selectFive(events){
-  const usable = shuffle(events).filter(e => e.year && e.pages && e.pages[0] && e.pages[0].extract);
+  const usable = shuffle(events).filter(e =>
+    e.year && e.pages && e.pages[0] && e.pages[0].extract && !isRecurringEvent(e.text)
+  );
   const chosen = [];
   const usedYears = new Set();
   for (const e of usable){
@@ -327,7 +357,7 @@ async function newGame(){
   const enriched = events.map((e, i) => {
     const page = e.pages[0];
     return {
-      title: formatEventTitle(e.text),
+      title: truncateTitle(formatEventTitle(e.text)),
       year: e.year,
       wiki: page.title,
       thumb: (page.thumbnail && page.thumbnail.source) ? page.thumbnail.source : null,
