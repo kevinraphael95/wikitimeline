@@ -57,18 +57,20 @@
   function cleanText(text) {
     if (!text) return '';
     let t = text.trim();
+    t = t.replace(/_/g, ' '); // Remplace les underscores par des espaces
     t = t.replace(/\[.*?\]/g, ''); // Enlève [1], [réf. nécessaire]
-    t = t.replace(/\s+/g, ' '); 
-    t = t.replace(/\s+([.,;:!?])/g, '$1'); 
-    t = t.charAt(0).toUpperCase() + t.slice(1);
-    return t.replace(/\.$/, '').trim();
+    t = t.replace(/\s+/g, ' '); // Enlève les doubles espaces
+    t = t.replace(/\s+([.,;:!?])/g, '$1'); // Nettoie les espaces avant ponctuation
+    t = t.charAt(0).toUpperCase() + t.slice(1); // Majuscule au début
+    return t.replace(/\.$/, '').trim(); // Enlève le point final
   }
 
   // Nettoie le titre de l'article (enlève les dates entre parenthèses)
   function cleanArticleTitle(title) {
     if (!title) return '';
-    // Enlève les dates du type "(1515)" ou "(1515-1520)" à la fin du titre
-    return title.replace(/\s*\([0-9]{3,4}(?:\s*-\s*[0-9]{3,4})?\)\s*$/, '');
+    let t = title.replace(/_/g, ' '); // Remplace les underscores par des espaces
+    t = t.replace(/\s*\([0-9]{3,4}(?:\s*-\s*[0-9]{3,4})?\)\s*$/, ''); // Enlève les dates (ex: 1515)
+    return t.trim();
   }
 
   function shuffle(arr) {
