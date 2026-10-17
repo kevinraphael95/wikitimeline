@@ -1,41 +1,45 @@
 (function() {
-  // --- CONSTANTES & VARIABLES GLOBALES ---
-  const DAYS_IN_MONTH = [31,28,31,30,31,30,31,31,30,31,30,31];
-  const CARD_H = 140; // Doit correspondre à la hauteur dans le CSS
-  const GAP = 16;     // Doit correspondre à l'espacement dans le CSS
-  
+  const CARD_H = 90; 
+  const GAP = 12;
   let order = [];
   let solved = false;
   let cardEls = {};
-  let currentDragId = null;
+  
+  let dragState = null;
+  let animationFrameId = null;
 
-  // --- ÉLÉMENTS DOM ---
   const themeToggle = document.getElementById('themeToggle');
-  const themeIcon = document.getElementById('themeIcon');
   const statusEl = document.getElementById('status');
-  const loadingEl = document.getElementById('loading');
-  const boardWrapEl = document.getElementById('boardWrap');
   const boardEl = document.getElementById('board');
   const railEl = document.getElementById('rail');
   const validateBtn = document.getElementById('validateBtn');
   const newGameBtn = document.getElementById('newGameBtn');
-  const resultBanner = document.getElementById('resultBanner');
+  const resultEl = document.getElementById('result');
 
-  // --- GESTION DU THÈME ---
-  function applyTheme(theme) {
-    document.documentElement.dataset.theme = theme;
-    themeIcon.textContent = theme === 'light' ? '☀️' : '🌙';
-  }
-  
-  let currentTheme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
-  applyTheme(currentTheme);
+  const MOCK_DATA = [
+    { text: "Le premier pas sur la Lune par Neil Armstrong", year: 1969 },
+    { text: "Chute du mur de Berlin", year: 1989 },
+    { text: "Fin de la Seconde Guerre mondiale", year: 1945 },
+    { text: "Premier vol motorisé des frères Wright", year: 1903 },
+    { text: "Découverte de la pénicilline par Fleming", year: 1928 }
+  ];
+
+  // --- Thème ---
+  const currentTheme = localStorage.getItem('theme') || 'light';
+  document.documentElement.setAttribute('data-theme', currentTheme);
+  themeToggle.textContent = currentTheme === 'dark' ? '☀️' : '🌙';
 
   themeToggle.addEventListener('click', () => {
-    currentTheme = currentTheme === 'light' ? 'dark' : 'light';
-    applyTheme(currentTheme);
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const newTheme = isDark ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    themeToggle.textContent = newTheme === 'dark' ? '☀️' : '🌙';
   });
 
-  // --- UTILITAIRES ---
+  resultEl.addEventListener('click', () => resultEl.classList.remove('show'));
+
+  // --- Logique ---
   function shuffle(arr) {
     const a = arr.slice();
     for (let i = a.length - 1; i > 0; i--) {
@@ -45,100 +49,41 @@
     return a;
   }
 
-  function formatYear(y) {
-    if (y < 0) return `${Math.abs(y)} av. J.-C.`;
-    return `En ${y}`;
-  }
+  function slotY(index) { return index * (CARD_H + GAP); }
 
-  function randomMonthDay() {
-    const month = Math.floor(Math.random() * 12) + 1;
-    const day = Math.floor(Math.random() * DAYS_IN_MONTH[month - 1]) + 1;
-    return { mm: String(month).padStart(2, '0'), dd: String(day).padStart(2, '0') };
-  }
-
-  // --- API WIKIPÉDIA ---
-  async function fetchDailyEvents() {
-    const { mm, dd } = randomMonthDay();
-    const res = await fetch(`https://fr.wikipedia.org/api/rest_v1/feed/onthisday/events/${mm}/${dd}`);
-    if (!res.ok) throw new Error('Erreur API');
-    const data = await res.json();
-    return data.events || [];
-  }
-
-  function formatEventTitle(text) {
-    if (!text) return '';
-    let t = text.trim();
-    t = t.charAt(0).toUpperCase() + t.slice(1);
-    return t.replace(/\.$/, '');
-  }
-
-  const RECURRING_KEYWORDS = [
-    'élection', 'référendum', 'referendum', 'jeux olympiques', 'jeux paralympiques',
-    'championnat', 'coupe du monde', 'grand prix', 'festival de cannes', 'oscars',
-    'grammy', 'eurovision', 'sommet'
-  ];
-
-  function isRecurringEvent(text) {
-    if (!text) return false;
-    const t = text.toLowerCase();
-    return RECURRING_KEYWORDS.some(k => t.includes(k));
-  }
-
-  function selectFive(events) {
-    const usable = shuffle(events).filter(e =>
-      e.year && e.pages && e.pages[0] && e.pages[0].extract && !isRecurringEvent(e.text)
-    );
-    const chosen = [];
-    const usedYears = new Set();
-    for (const e of usable) {
-      if (chosen.length >= 5) break;
-      if (usedYears.has(e.year)) continue;
-      usedYears.add(e.year);
-      chosen.push(e);
-    }
-    return chosen;
-  }
-
-  async function pickFiveFromApi() {
-    for (let attempt = 0; attempt < 8; attempt++) {
-      try {
-        const events = await fetchDailyEvents();
-        const chosen = selectFive(events);
-        if (chosen.length >= 5) return chosen;
-      } catch (e) { /* On retente */ }
-    }
-    return [];
-  }
-
-  // --- RENDU VISUEL ---
+  // --- Rail corrigé via JS ---
   function buildRail(n) {
-    railEl.innerHTML = '<div class="rail-line"></div>';
+    railEl.innerHTML = '';
+    const boardHeight = slotY(n - 1) + CARD_H;
+    railEl.style.height = boardHeight + 'px';
+
+    const centerFirst = slotY(0) + CARD_H / 2;
+    const centerLast = slotY(n - 1) + CARD_H / 2;
+    const lineHeight = centerLast - centerFirst;
+
+    const line = document.createElement('div');
+    line.className = 'rail-line';
+    line.style.top = centerFirst + 'px';
+    line.style.height = lineHeight + 'px';
+    railEl.appendChild(line);
+
     for (let i = 0; i < n; i++) {
       const tick = document.createElement('div');
       tick.className = 'tick';
-      // Centrage mathématique du point sur la ligne
-      tick.style.top = (i * (CARD_H + GAP) + (CARD_H / 2) - 6) + 'px';
+      tick.style.top = (slotY(i) + CARD_H / 2 - 6) + 'px'; 
       tick.dataset.index = i;
       railEl.appendChild(tick);
     }
   }
 
-  function revealTick(index) {
-    const tick = railEl.querySelector(`.tick[data-index="${index}"]`);
-    if (tick) tick.classList.add('revealed');
-  }
-
-  function clearReveal() {
-    railEl.querySelectorAll('.tick').forEach(t => t.classList.remove('revealed'));
-  }
-
-  function slotY(index) { return index * (CARD_H + GAP); }
-
   function layout(excludeId) {
     order.forEach((item, i) => {
       if (item._id === excludeId) return;
       const el = cardEls[item._id];
-      if (el) el.style.transform = `translateY(${slotY(i)}px)`;
+      if (el) {
+        el.style.transition = 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
+        el.style.transform = `translateY(${slotY(i)}px)`;
+      }
     });
   }
 
@@ -151,93 +96,98 @@
       const card = document.createElement('div');
       card.className = 'card';
       card.dataset.id = item._id;
-      card.style.transition = 'none'; // Empêche l'animation au premier rendu
+      card.style.transition = 'none';
+      card.style.transform = `translateY(${slotY(order.indexOf(item))}px)`;
 
-      // Poignée
-      const handle = document.createElement('div');
-      handle.className = 'card-handle';
-      handle.innerHTML = '⠿';
+      const grip = document.createElement('div');
+      grip.className = 'grip';
 
-      // Image
-      const thumb = document.createElement('div');
-      thumb.className = 'card-thumb';
-      if (item.thumb) {
-        const img = document.createElement('img');
-        img.src = item.thumb;
-        img.alt = '';
-        img.draggable = false;
-        thumb.appendChild(img);
-      } else {
-        thumb.textContent = '📜';
-      }
-
-      // Contenu (Titre + Année cachée)
       const content = document.createElement('div');
-      content.className = 'card-content';
+      content.className = 'content';
       
-      const titleEl = document.createElement('div');
-      titleEl.className = 'card-title';
-      titleEl.textContent = item.title;
+      const title = document.createElement('div');
+      title.className = 'title';
+      title.textContent = item.text;
       
-      const yearEl = document.createElement('div');
-      yearEl.className = 'card-year';
+      const year = document.createElement('div');
+      year.className = 'year';
       
-      content.appendChild(titleEl);
-      content.appendChild(yearEl);
-
-      card.appendChild(handle);
-      card.appendChild(thumb);
+      content.appendChild(title);
+      content.appendChild(year);
+      card.appendChild(grip);
       card.appendChild(content);
 
       cardEls[item._id] = card;
       boardEl.appendChild(card);
+      
       attachDrag(card, item);
-    });
-
-    layout(null);
-
-    requestAnimationFrame(() => {
-      Object.values(cardEls).forEach(el => { el.style.transition = ''; });
     });
   }
 
-  // --- DRAG & DROP ---
+  // --- Drag & Drop ---
   function attachDrag(card, item) {
     card.addEventListener('pointerdown', (e) => {
       if (solved) return;
-      // Si on clique sur un bouton ou un lien, on ne drag pas
-      if (e.target.closest('button') || e.target.closest('a')) return;
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
 
-      const startY = e.clientY;
+      const rect = card.getBoundingClientRect();
+      const offsetY = e.clientY - rect.top; 
       const startIndex = order.findIndex(o => o._id === item._id);
-      const startTranslate = slotY(startIndex);
-      const maxTranslate = slotY(order.length - 1);
-
+      
       card.setPointerCapture(e.pointerId);
       card.classList.add('dragging');
-      currentDragId = item._id;
+      card.style.transition = 'none'; 
 
-      function onMove(ev) {
-        const dy = ev.clientY - startY;
-        const t = Math.max(0, Math.min(maxTranslate, startTranslate + dy));
-        card.style.transform = `translateY(${t}px)`;
+      dragState = {
+        card,
+        item,
+        pointerY: e.clientY,
+        offsetY,
+        startIndex,
+        maxTranslate: slotY(order.length - 1)
+      };
+
+      function animate() {
+        if (!dragState) return;
+
+        const boardRect = boardEl.getBoundingClientRect();
+        const pointerY = dragState.pointerY - boardRect.top;
+        
+        let t = pointerY - dragState.offsetY;
+        t = Math.max(0, Math.min(dragState.maxTranslate, t));
+        
+        dragState.card.style.transform = `translateY(${t}px)`;
 
         const candidateIndex = Math.round(t / (CARD_H + GAP));
-        const currentIndex = order.findIndex(o => o._id === item._id);
+        const currentIndex = order.findIndex(o => o._id === dragState.item._id);
         
         if (candidateIndex !== currentIndex) {
           const [moved] = order.splice(currentIndex, 1);
           order.splice(candidateIndex, 0, moved);
-          layout(item._id);
+          layout(dragState.item._id);
         }
+
+        animationFrameId = requestAnimationFrame(animate);
+      }
+
+      animationFrameId = requestAnimationFrame(animate);
+
+      function onMove(ev) {
+        if (dragState) dragState.pointerY = ev.clientY;
       }
 
       function onUp() {
-        card.classList.remove('dragging');
-        currentDragId = null;
-        const finalIndex = order.findIndex(o => o._id === item._id);
-        card.style.transform = `translateY(${slotY(finalIndex)}px)`;
-        
+        if (animationFrameId) cancelAnimationFrame(animationFrameId);
+        if (dragState) {
+          const finalIndex = order.findIndex(o => o._id === dragState.item._id);
+          dragState.card.style.transition = 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
+          dragState.card.style.transform = `translateY(${slotY(finalIndex)}px)`;
+          dragState.card.classList.remove('dragging');
+          setTimeout(() => { 
+            if (dragState) dragState.card.style.transition = '';
+            dragState = null; 
+          }, 300);
+        }
         card.removeEventListener('pointermove', onMove);
         card.removeEventListener('pointerup', onUp);
         card.removeEventListener('pointercancel', onUp);
@@ -249,78 +199,79 @@
     });
   }
 
-  // --- VALIDATION ---
+  // --- Validation Intelligente ---
   function checkOrder() {
     if (solved) return;
     solved = true;
     validateBtn.disabled = true;
+    statusEl.textContent = 'Vérification...';
 
+    // On trie une copie de l'ordre pour avoir la référence parfaite
     const correctOrder = order.slice().sort((a, b) => a.year - b.year);
+    
+    // On crée un dictionnaire des positions parfaites
+    const correctPositions = {};
+    correctOrder.forEach((item, index) => {
+      correctPositions[item._id] = index;
+    });
+
     let allCorrect = true;
 
     order.forEach((item, idx) => {
       const card = cardEls[item._id];
-      const yearEl = card.querySelector('.card-year');
-      const isCorrect = correctOrder[idx]._id === item._id;
+      const yearEl = card.querySelector('.year');
       
-      yearEl.textContent = formatYear(item.year);
+      yearEl.textContent = item.year;
+      
+      // On compare l'index actuel de la carte avec son index parfait
+      const isCorrect = correctPositions[item._id] === idx;
       
       if (isCorrect) {
         card.classList.add('correct');
+        card.classList.remove('wrong');
       } else {
         card.classList.add('wrong');
+        card.classList.remove('correct');
         allCorrect = false;
       }
-      revealTick(idx);
+      
+      const tick = railEl.querySelector(`.tick[data-index="${idx}"]`);
+      if (tick) tick.classList.add('revealed');
     });
 
-    resultBanner.className = 'result-banner show ' + (allCorrect ? 'win' : 'lose');
-    resultBanner.textContent = allCorrect
-      ? 'Félicitations ! La chronologie est parfaite.'
-      : 'Presque ! Regarde les dates qui viennent d\'apparaître.';
-
-    statusEl.textContent = allCorrect ? 'Gagné !' : 'Terminé';
+    resultEl.className = 'result show ' + (allCorrect ? 'win' : 'lose');
+    
+    if (allCorrect) {
+      resultEl.textContent = 'Parfait ! L\'ordre est exact.';
+    } else {
+      // On compte combien de cartes sont bien placées
+      const correctCount = order.filter((item, idx) => correctPositions[item._id] === idx).length;
+      resultEl.textContent = `Presque ! ${correctCount} carte(s) sur 5 sont à la bonne place.`;
+    }
+    
+    statusEl.textContent = 'Fini';
   }
 
-  // --- NOUVELLE PARTIE ---
-  async function newGame() {
+  function newGame() {
     solved = false;
-    resultBanner.className = 'result-banner';
-    clearReveal();
-    loadingEl.style.display = 'flex';
-    boardWrapEl.style.display = 'none';
-    validateBtn.disabled = true;
-    newGameBtn.disabled = true;
-    statusEl.textContent = 'Chargement…';
+    dragState = null;
+    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    
+    resultEl.className = 'result';
+    railEl.querySelectorAll('.tick').forEach(t => t.classList.remove('revealed'));
+    validateBtn.disabled = false;
+    statusEl.textContent = 'Prêt';
 
-    const events = await pickFiveFromApi();
-
-    if (events.length < 5) {
-      loadingEl.style.display = 'none';
-      newGameBtn.disabled = false;
-      statusEl.textContent = 'Erreur de connexion. Réessaie.';
-      return;
-    }
-
-    const enriched = events.map((e, i) => ({
-      title: formatEventTitle(e.text),
-      year: e.year,
-      thumb: (e.pages[0].thumbnail) ? e.pages[0].thumbnail.source : null,
+    const enriched = MOCK_DATA.map((e, i) => ({
+      ...e,
       _id: i + '-' + Date.now(),
     }));
 
     order = shuffle(enriched);
     buildRail(order.length);
     render();
-
-    loadingEl.style.display = 'none';
-    boardWrapEl.style.display = 'flex';
-    validateBtn.disabled = false;
-    newGameBtn.disabled = false;
-    statusEl.textContent = 'À toi de jouer !';
   }
 
-  // --- INITIALISATION ---
   validateBtn.addEventListener('click', checkOrder);
   newGameBtn.addEventListener('click', newGame);
 
