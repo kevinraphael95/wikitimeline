@@ -1,6 +1,5 @@
 (function() {
-  const CARD_H = 90; /* Hauteur de base (s'adapte si la desc est longue) */
-  const GAP = 12;
+  const GAP = 12; // Espace entre les cartes
   
   let order = [];
   let solved = false;
@@ -33,13 +32,9 @@
 
   resultEl.addEventListener('click', () => resultEl.classList.remove('show'));
 
-  // --- Utilitaires ---
+  // --- Utilitaires de nettoyage ---
   const DAYS_IN_MONTH = [31,28,31,30,31,30,31,31,30,31,30,31];
-  const RECURRING_KEYWORDS = [
-    'élection', 'référendum', 'referendum', 'jeux olympiques', 'jeux paralympiques',
-    'championnat', 'coupe du monde', 'grand prix', 'festival de cannes', 'oscars',
-    'grammy', 'eurovision', 'sommet'
-  ];
+  const RECURRING_KEYWORDS = ['élection', 'référendum', 'referendum', 'jeux olympiques', 'jeux paralympiques', 'championnat', 'coupe du monde', 'grand prix', 'festival de cannes', 'oscars', 'grammy', 'eurovision', 'sommet'];
 
   function isRecurringEvent(text) {
     if (!text) return false;
@@ -53,23 +48,21 @@
     return { mm: String(month).padStart(2, '0'), dd: String(day).padStart(2, '0') };
   }
 
-  // Nettoie le texte (enlève les [réf.], etc.)
   function cleanText(text) {
     if (!text) return '';
     let t = text.trim();
-    t = t.replace(/_/g, ' '); // Remplace les underscores par des espaces
-    t = t.replace(/\[.*?\]/g, ''); // Enlève [1], [réf. nécessaire]
-    t = t.replace(/\s+/g, ' '); // Enlève les doubles espaces
-    t = t.replace(/\s+([.,;:!?])/g, '$1'); // Nettoie les espaces avant ponctuation
-    t = t.charAt(0).toUpperCase() + t.slice(1); // Majuscule au début
-    return t.replace(/\.$/, '').trim(); // Enlève le point final
+    t = t.replace(/_/g, ' '); 
+    t = t.replace(/\[.*?\]/g, ''); 
+    t = t.replace(/\s+/g, ' '); 
+    t = t.replace(/\s+([.,;:!?])/g, '$1'); 
+    t = t.charAt(0).toUpperCase() + t.slice(1);
+    return t.replace(/\.$/, '').trim();
   }
 
-  // Nettoie le titre de l'article (enlève les dates entre parenthèses)
   function cleanArticleTitle(title) {
     if (!title) return '';
-    let t = title.replace(/_/g, ' '); // Remplace les underscores par des espaces
-    t = t.replace(/\s*\([0-9]{3,4}(?:\s*-\s*[0-9]{3,4})?\)\s*$/, ''); // Enlève les dates (ex: 1515)
+    let t = title.replace(/_/g, ' '); 
+    t = t.replace(/\s*\([0-9]{3,4}(?:\s*-\s*[0-9]{3,4})?\)\s*$/, ''); 
     return t.trim();
   }
 
@@ -82,25 +75,17 @@
     return a;
   }
 
-  function slotY(index) { return index * (CARD_H + GAP); }
-
   // ============================================================
   // OPTIMISATION RÉSEAU
   // ============================================================
-
   async function getBatchPageviews(articleTitles) {
     if (!articleTitles || articleTitles.length === 0) return {};
-
     const now = new Date();
     const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const year = lastMonth.getFullYear();
-    const month = String(lastMonth.getMonth() + 1).padStart(2, '0');
-    const start = `${year}${month}01`;
-    const end = `${year}${month}28`;
-
+    const start = `${lastMonth.getFullYear()}${String(lastMonth.getMonth() + 1).padStart(2, '0')}01`;
+    const end = `${lastMonth.getFullYear()}${String(lastMonth.getMonth() + 1).padStart(2, '0')}28`;
     const titles = articleTitles.map(t => encodeURIComponent(t.replace(/ /g, '_'))).join('%7C');
     const url = `https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/fr.wikipedia/all-access/user/${titles}/monthly/${start}/${end}`;
-
     try {
       const res = await fetch(url);
       if (!res.ok) return {};
@@ -109,8 +94,7 @@
       if (data.items) {
         data.items.forEach(item => {
           const title = item.article.replace(/_/g, ' ');
-          if (!viewsMap[title]) viewsMap[title] = 0;
-          viewsMap[title] += item.views;
+          viewsMap[title] = (viewsMap[title] || 0) + item.views;
         });
       }
       return viewsMap;
@@ -121,19 +105,15 @@
     try {
       const res = await fetch(`https://fr.wikipedia.org/api/rest_v1/feed/onthisday/events/${mm}/${dd}`);
       if (!res.ok) return [];
-      const data = await res.json();
-      return data.events || [];
+      return (await res.json()).events || [];
     } catch (e) { return []; }
   }
 
   async function prepareGameData(isHardMode = false) {
     const { mm, dd } = randomMonthDay();
     statusEl.textContent = `Chargement du ${dd}/${mm}...`;
-    
     const events = await fetchEventsForDate(mm, dd);
-    let usable = shuffle(events).filter(e =>
-      e.year && e.pages && e.pages[0] && e.pages[0].extract && !isRecurringEvent(e.text)
-    );
+    let usable = shuffle(events).filter(e => e.year && e.pages && e.pages[0] && e.pages[0].extract && !isRecurringEvent(e.text));
 
     if (usable.length === 0) return [];
 
@@ -141,10 +121,7 @@
       statusEl.textContent = 'Analyse de la popularité...';
       const titlesToCheck = usable.slice(0, 50).map(e => e.pages[0].title);
       const viewsMap = await getBatchPageviews(titlesToCheck);
-      usable = usable.filter(e => {
-        const title = e.pages[0].title;
-        return (viewsMap[title] || 0) >= 10000;
-      });
+      usable = usable.filter(e => (viewsMap[e.pages[0].title] || 0) >= 10000);
     }
 
     const chosen = [];
@@ -158,53 +135,83 @@
     return chosen;
   }
 
-  // --- Logique du jeu ---
-  function buildRail(n) {
-    railEl.innerHTML = '';
-    const boardHeight = slotY(n - 1) + CARD_H;
-    railEl.style.height = boardHeight + 'px';
+  // ============================================================
+  // LOGIQUE DE RENDU DYNAMIQUE
+  // ============================================================
+  
+  // Recalcule la position de toutes les cartes en fonction de leur hauteur réelle
+  function layout(excludeId) {
+    let currentY = 0;
+    order.forEach((item) => {
+      const el = cardEls[item._id];
+      if (!el) return;
 
-    const centerFirst = slotY(0) + CARD_H / 2;
-    const centerLast = slotY(n - 1) + CARD_H / 2;
-    const lineHeight = centerLast - centerFirst;
+      // Si la carte est celle qu'on drag, on ne touche pas à son Y (c'est la souris qui gère)
+      if (item._id !== excludeId) {
+        el.style.transition = 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
+        el.style.transform = `translateY(${currentY}px)`;
+      }
+      
+      // On ajoute la hauteur de la carte (offsetHeight) + l'espace
+      currentY += el.offsetHeight + GAP;
+    });
 
-    const line = document.createElement('div');
-    line.className = 'rail-line';
-    line.style.top = centerFirst + 'px';
-    line.style.height = lineHeight + 'px';
-    railEl.appendChild(line);
+    // On ajuste la hauteur du conteneur principal pour que le scroll fonctionne bien
+    boardEl.style.height = (currentY - GAP) + 'px';
+    railEl.style.height = (currentY - GAP) + 'px';
 
-    for (let i = 0; i < n; i++) {
-      const tick = document.createElement('div');
-      tick.className = 'tick';
-      tick.style.top = (slotY(i) + CARD_H / 2 - 6) + 'px'; 
-      tick.dataset.index = i;
-      railEl.appendChild(tick);
-    }
+    // On redessine le rail
+    updateRail();
   }
 
-  function layout(excludeId) {
+  // Met à jour la ligne et les points
+  function updateRail() {
+    railEl.innerHTML = '';
+    if (order.length === 0) return;
+
+    let currentY = 0;
+    const ticksData = [];
+
+    // On calcule les positions des ticks
     order.forEach((item, i) => {
-      if (item._id === excludeId) return;
       const el = cardEls[item._id];
-      if (el) {
-        el.style.transition = 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
-        el.style.transform = `translateY(${slotY(i)}px)`;
-      }
+      if (!el) return;
+      
+      const cardHeight = el.offsetHeight;
+      ticksData.push({ top: currentY + cardHeight / 2, index: i });
+      currentY += cardHeight + GAP;
+    });
+
+    const totalHeight = currentY - GAP;
+
+    // La ligne
+    const line = document.createElement('div');
+    line.className = 'rail-line';
+    line.style.top = (ticksData[0].top) + 'px';
+    line.style.height = (ticksData[ticksData.length - 1].top - ticksData[0].top) + 'px';
+    railEl.appendChild(line);
+
+    // Les points
+    ticksData.forEach(t => {
+      const tick = document.createElement('div');
+      tick.className = 'tick';
+      if (solved && resultEl.classList.contains('win')) tick.classList.add('revealed'); // Si on a gagné
+      // Si c'est l'index validé en mode partiel, on pourrait gérer, mais restons simple
+      tick.style.top = (t.top - 6) + 'px'; 
+      tick.dataset.index = t.index;
+      railEl.appendChild(tick);
     });
   }
 
   function render() {
     boardEl.innerHTML = '';
     cardEls = {};
-    boardEl.style.height = (slotY(order.length - 1) + CARD_H) + 'px';
-
+    
     order.forEach((item) => {
       const card = document.createElement('div');
       card.className = 'card';
       card.dataset.id = item._id;
-      card.style.transition = 'none';
-      card.style.transform = `translateY(${slotY(order.indexOf(item))}px)`;
+      card.style.transition = 'none'; // Pas d'anim au premier rendu
 
       const grip = document.createElement('div');
       grip.className = 'grip';
@@ -214,11 +221,11 @@
       
       const title = document.createElement('div');
       title.className = 'title';
-      title.textContent = item.text; // Le titre de l'article
+      title.textContent = item.text;
       
       const desc = document.createElement('div');
       desc.className = 'description';
-      desc.textContent = item.description; // Le texte de l'événement
+      desc.textContent = item.description; 
       
       const year = document.createElement('div');
       year.className = 'year';
@@ -235,6 +242,14 @@
       boardEl.appendChild(card);
       
       attachDrag(card, item);
+    });
+
+    // On laisse le navigateur calculer la hauteur des textes
+    // Puis on positionne tout correctement
+    requestAnimationFrame(() => {
+      layout(null);
+      // On réactive les transitions
+      Object.values(cardEls).forEach(el => { el.style.transition = ''; });
     });
   }
 
@@ -257,8 +272,7 @@
         item,
         pointerY: e.clientY,
         offsetY,
-        startIndex,
-        maxTranslate: slotY(order.length - 1)
+        startIndex
       };
 
       function animate() {
@@ -268,17 +282,36 @@
         const pointerY = dragState.pointerY - boardRect.top;
         
         let t = pointerY - dragState.offsetY;
-        t = Math.max(0, Math.min(dragState.maxTranslate, t));
+        
+        // Limites (haut et bas)
+        const totalHeight = boardEl.offsetHeight - dragState.card.offsetHeight;
+        t = Math.max(0, Math.min(totalHeight, t));
         
         dragState.card.style.transform = `translateY(${t}px)`;
 
-        const candidateIndex = Math.round(t / (CARD_H + GAP));
+        // Détection du changement de place basé sur le centre de la carte
+        const cardCenter = t + (dragState.card.offsetHeight / 2);
+        let candidateIndex = 0;
+        let currentY = 0;
+
+        for (let i = 0; i < order.length; i++) {
+          const el = cardEls[order[i]._id];
+          const h = el.offsetHeight;
+          
+          if (cardCenter > currentY + h / 2) {
+            candidateIndex = i;
+          } else {
+            break;
+          }
+          currentY += h + GAP;
+        }
+
         const currentIndex = order.findIndex(o => o._id === dragState.item._id);
         
-        if (candidateIndex !== currentIndex) {
+        if (candidateIndex !== currentIndex && candidateIndex >= 0 && candidateIndex < order.length) {
           const [moved] = order.splice(currentIndex, 1);
           order.splice(candidateIndex, 0, moved);
-          layout(dragState.item._id);
+          layout(dragState.item._id); // On repositionne les autres cartes
         }
 
         animationFrameId = requestAnimationFrame(animate);
@@ -293,10 +326,11 @@
       function onUp() {
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
         if (dragState) {
-          const finalIndex = order.findIndex(o => o._id === dragState.item._id);
           dragState.card.style.transition = 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
-          dragState.card.style.transform = `translateY(${slotY(finalIndex)}px)`;
+          // On le remet à sa place exacte
+          layout(null);
           dragState.card.classList.remove('dragging');
+          
           setTimeout(() => { 
             if (dragState) dragState.card.style.transition = '';
             dragState = null; 
@@ -330,21 +364,20 @@
 
     order.forEach((item, idx) => {
       const card = cardEls[item._id];
-      
       const isCorrect = correctPositions[item._id] === idx;
       
       if (isCorrect) {
         card.classList.add('correct');
-        card.classList.remove('wrong');
       } else {
         card.classList.add('wrong');
-        card.classList.remove('correct');
         allCorrect = false;
       }
-      
-      const tick = railEl.querySelector(`.tick[data-index="${idx}"]`);
-      if (tick) tick.classList.add('revealed');
     });
+
+    // Mise à jour du rail pour allumer les points
+    updateRail();
+    const ticks = railEl.querySelectorAll('.tick');
+    ticks.forEach(t => t.classList.add('revealed'));
 
     resultEl.className = 'result show ' + (allCorrect ? 'win' : 'lose');
     
@@ -365,7 +398,6 @@
     if (animationFrameId) cancelAnimationFrame(animationFrameId);
     
     resultEl.className = 'result';
-    railEl.querySelectorAll('.tick').forEach(t => t.classList.remove('revealed'));
     validateBtn.disabled = true;
     newGameBtn.disabled = true;
 
@@ -373,10 +405,10 @@
 
     boardEl.innerHTML = '';
     boardEl.style.height = '0px';
+    railEl.style.height = '0px';
     
     let events = await prepareGameData(isHardMode);
 
-    // Fallback si on n'a pas 5 événements
     if (events.length < 5) {
       statusEl.textContent = 'Recherche d\'une autre date...';
       const { mm, dd } = randomMonthDay();
@@ -399,14 +431,10 @@
       return;
     }
 
-    // L'INVERSION SE FAIT ICI
     const enriched = events.map((e, i) => {
       const articleTitle = e.pages[0].title;
-      
       return {
-        // Le gros titre = le titre de l'article (sans les dates)
         text: cleanArticleTitle(articleTitle), 
-        // La description = le texte de l'événement (nettoyé)
         description: cleanText(e.text),         
         year: e.year,
         _id: i + '-' + Date.now(),
@@ -414,7 +442,6 @@
     });
 
     order = shuffle(enriched);
-    buildRail(order.length);
     render();
 
     validateBtn.disabled = false;
