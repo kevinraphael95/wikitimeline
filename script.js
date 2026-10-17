@@ -1,6 +1,5 @@
 (function() {
-  // On augmente la hauteur de référence pour les calculs de position
-  const CARD_H = 110; 
+  const CARD_H = 90; /* Hauteur de base (s'adapte si la desc est longue) */
   const GAP = 12;
   
   let order = [];
@@ -54,15 +53,22 @@
     return { mm: String(month).padStart(2, '0'), dd: String(day).padStart(2, '0') };
   }
 
-  // Nettoyage renforcé du titre
-  function formatEventTitle(text) {
+  // Nettoie le texte (enlève les [réf.], etc.)
+  function cleanText(text) {
     if (!text) return '';
     let t = text.trim();
-    t = t.replace(/\[.*?\]/g, ''); // Enlève [réf. nécessaire], [1], etc.
-    t = t.replace(/\s+/g, ' '); // Enlève les doubles espaces
-    t = t.replace(/\s+([.,;:!?])/g, '$1'); // Nettoie les espaces avant ponctuation
+    t = t.replace(/\[.*?\]/g, ''); // Enlève [1], [réf. nécessaire]
+    t = t.replace(/\s+/g, ' '); 
+    t = t.replace(/\s+([.,;:!?])/g, '$1'); 
     t = t.charAt(0).toUpperCase() + t.slice(1);
-    return t.replace(/\.$/, '').trim(); // Enlève le point final
+    return t.replace(/\.$/, '').trim();
+  }
+
+  // Nettoie le titre de l'article (enlève les dates entre parenthèses)
+  function cleanArticleTitle(title) {
+    if (!title) return '';
+    // Enlève les dates du type "(1515)" ou "(1515-1520)" à la fin du titre
+    return title.replace(/\s*\([0-9]{3,4}(?:\s*-\s*[0-9]{3,4})?\)\s*$/, '');
   }
 
   function shuffle(arr) {
@@ -107,21 +113,6 @@
       }
       return viewsMap;
     } catch (e) { return {}; }
-  }
-
-  // Récupération des descriptions en parallèle
-  async function getBatchSummaries(pageTitles) {
-    const summaries = {};
-    const promises = pageTitles.map(async (title) => {
-      try {
-        const res = await fetch(`https://fr.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
-        if (!res.ok) return;
-        const data = await res.json();
-        summaries[title] = data.extract || '';
-      } catch (e) { /* ignore */ }
-    });
-    await Promise.all(promises);
-    return summaries;
   }
 
   async function fetchEventsForDate(mm, dd) {
@@ -221,15 +212,15 @@
       
       const title = document.createElement('div');
       title.className = 'title';
-      title.textContent = item.text;
+      title.textContent = item.text; // Le titre de l'article
       
       const desc = document.createElement('div');
       desc.className = 'description';
-      desc.textContent = item.description; 
+      desc.textContent = item.description; // Le texte de l'événement
       
       const year = document.createElement('div');
       year.className = 'year';
-      year.textContent = item.year; // On met l'année direct, mais elle est cachée par CSS (opacity: 0)
+      year.textContent = item.year;
       
       content.appendChild(title);
       content.appendChild(desc);
@@ -383,6 +374,7 @@
     
     let events = await prepareGameData(isHardMode);
 
+    // Fallback si on n'a pas 5 événements
     if (events.length < 5) {
       statusEl.textContent = 'Recherche d\'une autre date...';
       const { mm, dd } = randomMonthDay();
@@ -405,21 +397,15 @@
       return;
     }
 
-    // 1. On prépare les titres des pages pour la requête groupée
-    const titlesToFetch = events.map(e => e.pages[0].title);
-    
-    // 2. On récupère toutes les descriptions en même temps
-    statusEl.textContent = 'Récupération des descriptions...';
-    const summaries = await getBatchSummaries(titlesToFetch);
-
-    // 3. On enrichit nos événements avec le titre propre et la description
+    // L'INVERSION SE FAIT ICI
     const enriched = events.map((e, i) => {
-      const pageTitle = e.pages[0].title;
-      const cleanDesc = summaries[pageTitle] || ''; // La description propre
+      const articleTitle = e.pages[0].title;
       
       return {
-        text: formatEventTitle(e.text), // Le titre (déjà nettoyé)
-        description: cleanDesc,         // La nouvelle description complète
+        // Le gros titre = le titre de l'article (sans les dates)
+        text: cleanArticleTitle(articleTitle), 
+        // La description = le texte de l'événement (nettoyé)
+        description: cleanText(e.text),         
         year: e.year,
         _id: i + '-' + Date.now(),
       };
