@@ -3,53 +3,34 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Wiki Timeline - Le Jeu de Chronologie</title>
-<!-- Nouvelles polices plus modernes -->
+<title>Wiki Timeline — Pro</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="app">
-  <!-- Bouton Thème plus beau -->
-  <button id="themeToggle" class="theme-toggle" aria-label="Changer de thème">
-    <span id="themeIcon" class="theme-icon">🌙</span>
-  </button>
 
+<div class="app">
   <header class="header">
-    <h1>Wiki <em>Timeline</em></h1>
-    <p class="subtitle">
-      Remets ces 5 événements historiques dans le bon ordre chronologique.<br>
-      Glisse et dépose les cartes pour les réorganiser.
-    </p>
+    <div class="header-left">
+      <h1>Wiki Timeline</h1>
+      <p>Replacez les événements dans l'ordre chronologique.</p>
+    </div>
+    <div class="header-right">
+      <div class="status" id="status">Prêt</div>
+      <button id="validateBtn" class="btn" disabled>Valider</button>
+      <button id="newGameBtn" class="btn btn-primary">Nouvelle partie</button>
+      <button id="themeToggle" class="btn btn-icon">🌙</button>
+    </div>
   </header>
 
-  <div class="toolbar">
-    <div class="status-wrap">
-      <span id="status" class="status">Initialisation…</span>
-    </div>
-    <div class="actions">
-      <button id="validateBtn" class="btn btn-secondary" disabled>Valider</button>
-      <button id="newGameBtn" class="btn btn-primary">Nouvelle partie</button>
-    </div>
-  </div>
-
-  <div id="loading" class="loading">
-    <div class="spinner"></div>
-    <span>Chargement des données Wikipédia…</span>
-  </div>
-
-  <div class="board-wrap" id="boardWrap" style="display:none;">
+  <div class="board-wrap">
     <div class="rail" id="rail"></div>
-    <div id="board" class="board"></div>
+    <div id="board"></div>
   </div>
 
-  <div class="result-banner" id="resultBanner"></div>
-
-  <footer class="footer">
-    Données fournies par <a href="https://fr.wikipedia.org" target="_blank" rel="noopener">Wikipédia</a>
-  </footer>
+  <div class="result" id="result"></div>
 </div>
 
 <script src="script.js"></script>
