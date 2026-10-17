@@ -3,37 +3,53 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Wiki Timeline</title>
+<title>Wiki Timeline - Le Jeu de Chronologie</title>
+<!-- Nouvelles polices plus modernes -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="app">
-  <button id="themeToggle" class="theme-toggle" aria-label="Basculer entre mode clair et sombre" title="Mode clair / sombre">🌙</button>
-  <h1>Wiki <em>Timeline</em></h1>
-  <p class="subtitle">
-    Remets ces cinq faits tirés de <strong>Wikipédia</strong> du <strong>plus ancien</strong> (en haut) au <strong>plus récent</strong> (en bas).
-  </p>
+  <!-- Bouton Thème plus beau -->
+  <button id="themeToggle" class="theme-toggle" aria-label="Changer de thème">
+    <span id="themeIcon" class="theme-icon">🌙</span>
+  </button>
+
+  <header class="header">
+    <h1>Wiki <em>Timeline</em></h1>
+    <p class="subtitle">
+      Remets ces 5 événements historiques dans le bon ordre chronologique.<br>
+      Glisse et dépose les cartes pour les réorganiser.
+    </p>
+  </header>
 
   <div class="toolbar">
-    <span class="status" id="status">Chargement…</span>
-    <div style="display:flex; gap:8px;">
-      <button id="validateBtn" disabled>Valider l'ordre</button>
-      <button id="newGameBtn" class="btn-primary">Nouvelle partie</button>
+    <div class="status-wrap">
+      <span id="status" class="status">Initialisation…</span>
+    </div>
+    <div class="actions">
+      <button id="validateBtn" class="btn btn-secondary" disabled>Valider</button>
+      <button id="newGameBtn" class="btn btn-primary">Nouvelle partie</button>
     </div>
   </div>
 
-  <div id="loading" class="loading"><span class="spinner"></span>Interrogation de Wikipédia…</div>
+  <div id="loading" class="loading">
+    <div class="spinner"></div>
+    <span>Chargement des données Wikipédia…</span>
+  </div>
 
   <div class="board-wrap" id="boardWrap" style="display:none;">
     <div class="rail" id="rail"></div>
-    <div id="board"></div>
+    <div id="board" class="board"></div>
   </div>
 
   <div class="result-banner" id="resultBanner"></div>
 
-  <footer>Données via l'API REST de <a href="https://fr.wikipedia.org" target="_blank" rel="noopener">Wikipédia</a></footer>
+  <footer class="footer">
+    Données fournies par <a href="https://fr.wikipedia.org" target="_blank" rel="noopener">Wikipédia</a>
+  </footer>
 </div>
 
 <script src="script.js"></script>
