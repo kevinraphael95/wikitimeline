@@ -1,484 +1,349 @@
 /* ============================================================
-   DESIGN SYSTEM - Moderne, sombre et élégant
+   DESIGN SYSTEM — Premium SaaS (Linear / Vercel style)
    ============================================================ */
 :root {
-  /* Couleurs Dark (Défaut) */
+  --bg: #f9fafb;
+  --surface: #ffffff;
+  --text-main: #09090b;
+  --text-muted: #71717a;
+  --border: #e4e4e7;
+  --border-hover: #d4d4d8;
+  
+  --primary: #6366f1;
+  --primary-glow: rgba(99, 102, 241, 0.15);
+  
+  --success: #10b981;
+  --success-bg: #ecfdf5;
+  --error: #ef4444;
+  --error-bg: #fef2f2;
+  
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  
+  --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.06), 0 2px 4px -1px rgba(0,0,0,0.04);
+  --shadow-lg: 0 12px 20px -8px rgba(0,0,0,0.1);
+  
+  --font-display: 'Outfit', sans-serif;
+  --font-sans: 'Inter', sans-serif;
+}
+
+[data-theme="dark"] {
   --bg: #09090b;
-  --bg-elevated: #121215;
-  --card-bg: #18181b;
-  --card-hover: #27272a;
-  
-  --accent: #d4ad63;       /* L'or "Brass" */
-  --accent-light: #fce7b3;
-  --accent-glow: rgba(212, 173, 99, 0.15);
-  
+  --surface: #18181b;
   --text-main: #fafafa;
   --text-muted: #a1a1aa;
   --border: #27272a;
+  --border-hover: #3f3f46;
   
-  --success: #22c55e;
-  --success-bg: rgba(34, 197, 94, 0.1);
-  --error: #ef4444;
-  --error-bg: rgba(239, 68, 68, 0.1);
-
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
+  --primary: #818cf8;
+  --primary-glow: rgba(129, 140, 248, 0.15);
   
-  --font-sans: 'Inter', sans-serif;
-  --font-display: 'Outfit', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --success: #34d399;
+  --success-bg: rgba(52, 211, 153, 0.1);
+  --error: #f87171;
+  --error-bg: rgba(248, 113, 113, 0.1);
+  
+  --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.4);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.5), 0 2px 4px -1px rgba(0,0,0,0.3);
+  --shadow-lg: 0 12px 20px -8px rgba(0,0,0,0.6);
 }
 
-:root[data-theme="light"] {
-  --bg: #f8fafc;
-  --bg-elevated: #f1f5f9;
-  --card-bg: #ffffff;
-  --card-hover: #f8fafc;
-  
-  --accent: #b4802e;
-  --accent-light: #8a5e16;
-  --accent-glow: rgba(180, 128, 46, 0.15);
-  
-  --text-main: #0f172a;
-  --text-muted: #64748b;
-  --border: #e2e8f0;
-  
-  --success: #16a34a;
-  --success-bg: rgba(22, 163, 74, 0.1);
-  --error: #dc2626;
-  --error-bg: rgba(220, 38, 38, 0.1);
-}
-
-/* ============================================================
-   BASE
-   ============================================================ */
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+* { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
   background-color: var(--bg);
-  background-image: 
-    radial-gradient(circle at 50% -20%, var(--accent-glow), transparent 60%);
+  background-image: radial-gradient(circle at 50% -20%, var(--primary-glow), transparent 40%);
   color: var(--text-main);
   font-family: var(--font-sans);
-  line-height: 1.5;
   min-height: 100vh;
   display: flex;
   justify-content: center;
-  padding: 40px 20px 80px;
+  padding: 48px 24px;
   transition: background-color 0.3s ease, color 0.3s ease;
   -webkit-font-smoothing: antialiased;
 }
 
 .app {
   width: 100%;
-  max-width: 680px;
-  position: relative;
+  max-width: 800px;
   display: flex;
   flex-direction: column;
+  gap: 32px;
 }
 
-/* ============================================================
-   HEADER
-   ============================================================ */
+/* --- Header --- */
 .header {
-  text-align: center;
-  margin-bottom: 40px;
-  margin-top: 20px;
-}
-
-h1 {
-  font-family: var(--font-display);
-  font-size: clamp(2.5rem, 6vw, 3.5rem);
-  font-weight: 700;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
-  margin-bottom: 16px;
-}
-
-h1 em {
-  font-style: normal;
-  color: var(--accent);
-}
-
-.subtitle {
-  color: var(--text-muted);
-  font-size: 1.05rem;
-  max-width: 500px;
-  margin: 0 auto;
-}
-
-/* ============================================================
-   BOUTON THÈME
-   ============================================================ */
-.theme-toggle {
-  position: fixed;
-  top: 24px;
-  right: 24px;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--card-bg);
-  border: 1px solid var(--border);
-  color: var(--text-main);
-  font-size: 20px;
-  cursor: pointer;
-  z-index: 50;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-}
-
-.theme-toggle:hover {
-  transform: scale(1.1) rotate(15deg);
-  border-color: var(--accent);
-  box-shadow: 0 0 20px var(--accent-glow);
-}
-
-/* ============================================================
-   TOOLBAR (Status + Boutons)
-   ============================================================ */
-.toolbar {
-  display: flex;
-  align-items: center;
   justify-content: space-between;
-  margin-bottom: 24px;
-  gap: 16px;
-  flex-wrap: wrap;
+  align-items: flex-end;
 }
 
-.status {
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
+.header-left h1 {
+  font-family: var(--font-display);
+  font-size: 2.2rem;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+  margin-bottom: 6px;
+}
+
+.header-left p {
   color: var(--text-muted);
-  background: var(--bg-elevated);
-  padding: 6px 12px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
+  font-size: 0.95rem;
 }
 
-.actions {
+.header-right {
   display: flex;
   gap: 12px;
+  align-items: center;
 }
 
 .btn {
   font-family: var(--font-sans);
-  font-size: 0.9rem;
-  font-weight: 600;
-  padding: 10px 20px;
-  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-main);
   transition: all 0.2s ease;
-  border: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  box-shadow: var(--shadow-sm);
 }
 
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.btn:hover:not(:disabled) { 
+  border-color: var(--border-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
 }
 
 .btn-primary {
-  background: var(--accent);
-  color: #000;
-  box-shadow: 0 4px 12px var(--accent-glow);
+  background: var(--text-main);
+  color: var(--bg);
+  border-color: var(--text-main);
+}
+.btn-primary:hover:not(:disabled) { 
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
 }
 
-.btn-primary:hover:not(:disabled) {
-  background: var(--accent-light);
-  transform: translateY(-2px);
+.btn-icon {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
 }
 
-.btn-secondary {
-  background: var(--bg-elevated);
-  color: var(--text-main);
-  border: 1px solid var(--border);
+.btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.status {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.btn-secondary:hover:not(:disabled) {
-  background: var(--card-hover);
-  border-color: var(--text-muted);
+.status::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+  box-shadow: 0 0 10px var(--primary-glow);
 }
 
-/* ============================================================
-   PLATEAU DE JEU
-   ============================================================ */
+/* --- Plateau de jeu --- */
 .board-wrap {
   display: flex;
   gap: 20px;
   position: relative;
+  align-items: flex-start;
 }
 
-.rail {
-  width: 40px;
-  position: relative;
-  flex-shrink: 0;
+.rail { 
+  width: 24px; 
+  position: relative; 
+  flex-shrink: 0; 
+  align-self: stretch;
 }
 
-.rail-line {
-  position: absolute;
-  left: 19px;
-  top: 20px;
-  bottom: 20px;
-  width: 2px;
-  background: var(--border);
-  border-radius: 2px;
+/* Ligne calculée en JS pour s'arrêter pile au dernier point */
+.rail-line { 
+  position: absolute; 
+  left: 11px; 
+  width: 2px; 
+  background: var(--border); 
+  z-index: 1;
 }
 
-.tick {
-  position: absolute;
-  left: 0;
-  width: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.tick::before {
-  content: '';
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--bg);
-  border: 2px solid var(--border);
-  transition: all 0.3s ease;
+.tick { 
+  position: absolute; 
+  left: 0; 
+  width: 24px; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   z-index: 2;
 }
 
-.tick.revealed::before {
-  border-color: var(--accent);
-  background: var(--accent);
-  box-shadow: 0 0 10px var(--accent-glow);
+.tick::before { 
+  content: ''; 
+  width: 10px; 
+  height: 10px; 
+  border-radius: 50%;
+  background: var(--bg); 
+  border: 2px solid var(--border); 
+  transition: all 0.4s ease;
 }
 
-#board {
-  flex: 1;
-  position: relative;
-  /* Hauteur gérée par le JS */
+.tick.revealed::before { 
+  background: var(--primary); 
+  border-color: var(--primary);
+  transform: scale(1.4);
+  box-shadow: 0 0 0 4px var(--primary-glow);
 }
 
-/* ============================================================
-   CARTES
-   ============================================================ */
+#board { flex: 1; position: relative; }
+
+/* --- Cartes --- */
 .card {
   position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  height: 140px;
-  background: var(--card-bg);
+  left: 0; right: 0; top: 0;
+  height: 90px;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: 16px;
-  padding: 16px;
+  padding: 12px 20px;
   cursor: grab;
   user-select: none;
   touch-action: none;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.2s, border-color 0.2s;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s, border-color 0.2s, background 0.2s, opacity 0.2s;
+  will-change: transform;
 }
 
-.card:hover {
-  background: var(--card-hover);
-  border-color: var(--accent);
+.card:hover { 
+  border-color: var(--border-hover); 
+  box-shadow: var(--shadow-md);
 }
 
 .card.dragging {
   cursor: grabbing;
   z-index: 100;
-  box-shadow: 0 20px 40px -8px rgba(0, 0, 0, 0.5);
-  transform: scale(1.02) !important; /* Override JS inline style slightly */
-  border-color: var(--accent);
+  border-color: var(--primary);
+  box-shadow: var(--shadow-lg), 0 0 0 1px var(--primary);
+  background: var(--surface);
 }
 
-.card.correct {
-  border-color: var(--success);
-  background: var(--success-bg);
+.card.correct { 
+  border-color: var(--success); 
+  background: var(--success-bg); 
 }
 
-.card.wrong {
-  border-color: var(--error);
-  background: var(--error-bg);
+.card.wrong { 
+  border-color: var(--error); 
+  background: var(--error-bg); 
+  opacity: 0.8;
 }
 
-.card-handle {
-  width: 24px;
+/* Poignée de drag (Grip) */
+.grip {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-muted);
-  cursor: grab;
-  font-size: 20px;
-  opacity: 0.5;
+  flex-direction: column;
+  gap: 3px;
+  opacity: 0.4;
+  flex-shrink: 0;
   transition: opacity 0.2s;
 }
-
-.card:hover .card-handle {
-  opacity: 1;
-}
-
-.card-thumb {
-  width: 90px;
-  height: 100%;
-  border-radius: var(--radius-sm);
-  background: var(--bg-elevated);
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 32px;
-  flex-shrink: 0;
-}
-
-.card-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.card-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-width: 0;
-}
-
-.card-title {
-  font-weight: 600;
-  font-size: 1rem;
-  line-height: 1.4;
-  color: var(--text-main);
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.card-year {
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  font-weight: 700;
-  margin-top: 6px;
-  opacity: 0;
-  transform: translateY(-5px);
-  transition: all 0.3s ease;
-}
-
-.card.correct .card-year,
-.card.wrong .card-year {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.card.correct .card-year { color: var(--success); }
-.card.wrong .card-year { color: var(--error); }
-
-/* ============================================================
-   ÉTATS & ANIMATIONS
-   ============================================================ */
-.loading {
-  text-align: center;
-  color: var(--text-muted);
-  padding: 80px 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-}
-
-.spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid var(--border);
-  border-top-color: var(--accent);
+.grip::before, .grip::after {
+  content: '';
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  background: var(--text-muted);
+  box-shadow: 0 8px 0 var(--text-muted), 0 16px 0 var(--text-muted);
+}
+.card:hover .grip { opacity: 1; }
+
+.content { 
+  flex: 1; 
+  min-width: 0; 
+  display: flex; 
+  align-items: center; 
+  justify-content: space-between; 
+  gap: 16px; 
 }
 
-@keyframes spin { 100% { transform: rotate(360deg); } }
+.title { 
+  font-size: 0.95rem; 
+  font-weight: 500; 
+  line-height: 1.4; 
+  color: var(--text-main);
+}
 
-.result-banner {
-  margin-top: 24px;
-  padding: 16px;
-  border-radius: var(--radius-md);
-  text-align: center;
+.year { 
+  font-family: var(--font-display);
+  font-size: 1.1rem; 
+  font-weight: 700; 
+  color: var(--text-muted); 
+  opacity: 0; 
+  transform: translateY(-4px);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); 
+}
+
+.card.correct .year { color: var(--success); opacity: 1; transform: translateY(0); }
+.card.wrong .year { color: var(--error); opacity: 1; transform: translateY(0); }
+
+/* --- Résultat (Popup) --- */
+.result {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.95);
+  padding: 24px 48px; 
+  text-align: center; 
+  font-family: var(--font-display);
+  font-size: 1.2rem; 
   font-weight: 600;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border); 
   display: none;
-  animation: slideUp 0.3s ease;
+  background: var(--surface);
+  color: var(--text-main);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+  z-index: 200;
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
 }
 
-.result-banner.show { display: block; }
-
-.result-banner.win {
-  background: var(--success-bg);
-  color: var(--success);
-  border: 1px solid var(--success);
+.result.show { 
+  display: block; 
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
 }
 
-.result-banner.lose {
-  background: var(--error-bg);
-  color: var(--error);
-  border: 1px solid var(--error);
-}
+.result.win { border-color: var(--success); color: var(--success); box-shadow: 0 0 40px var(--success-bg); }
+.result.lose { border-color: var(--error); color: var(--error); box-shadow: 0 0 40px var(--error-bg); }
 
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* ============================================================
-   FOOTER
-   ============================================================ */
-.footer {
-  margin-top: auto;
-  padding-top: 60px;
-  text-align: center;
-  font-size: 0.85rem;
-  color: var(--text-muted);
-}
-
-.footer a {
-  color: var(--accent);
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.footer a:hover {
-  text-decoration: underline;
-}
-
-/* ============================================================
-   RESPONSIVE
-   ============================================================ */
-@media (max-width: 640px) {
-  body { padding: 20px 16px 60px; }
-  .theme-toggle { top: 16px; right: 16px; width: 40px; height: 40px; font-size: 16px; }
-  .toolbar { flex-direction: column; align-items: stretch; }
-  .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .board-wrap { gap: 12px; }
-  .rail { width: 20px; }
-  .rail-line { left: 9px; }
-  .tick { width: 20px; }
-  .tick::before { width: 10px; height: 10px; }
-  
-  .card {
-    height: 120px;
-    padding: 12px;
-    gap: 12px;
-  }
-  .card-thumb { width: 70px; }
-  .card-title { font-size: 0.9rem; }
-  .card-handle { display: none; } /* On cache la poignée sur mobile, on drag la carte entière */
+@media (max-width: 768px) {
+  body { padding: 24px 16px; }
+  .header { flex-direction: column; align-items: stretch; gap: 20px; }
+  .header-right { justify-content: space-between; }
+  .board-wrap { gap: 10px; }
+  .rail { display: none; }
+  .content { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .year { font-size: 1rem; }
 }
