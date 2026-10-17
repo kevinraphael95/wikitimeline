@@ -31,7 +31,7 @@
 
   resultEl.addEventListener('click', () => resultEl.classList.remove('show'));
 
-  // --- API WIKIPÉDIA ---
+  // --- Utilitaires ---
   const DAYS_IN_MONTH = [31,28,31,30,31,30,31,31,30,31,30,31];
   const RECURRING_KEYWORDS = [
     'élection', 'référendum', 'referendum', 'jeux olympiques', 'jeux paralympiques',
@@ -51,14 +51,6 @@
     return { mm: String(month).padStart(2, '0'), dd: String(day).padStart(2, '0') };
   }
 
-  async function fetchDailyEvents() {
-    const { mm, dd } = randomMonthDay();
-    const res = await fetch(`https://fr.wikipedia.org/api/rest_v1/feed/onthisday/events/${mm}/${dd}`);
-    if (!res.ok) throw new Error('Erreur API');
-    const data = await res.json();
-    return data.events || [];
-  }
-
   function formatEventTitle(text) {
     if (!text) return '';
     let t = text.trim();
@@ -66,33 +58,6 @@
     return t.replace(/\.$/, '');
   }
 
-  function selectFive(events) {
-    const usable = shuffle(events).filter(e =>
-      e.year && e.pages && e.pages[0] && e.pages[0].extract && !isRecurringEvent(e.text)
-    );
-    const chosen = [];
-    const usedYears = new Set();
-    for (const e of usable) {
-      if (chosen.length >= 5) break;
-      if (usedYears.has(e.year)) continue;
-      usedYears.add(e.year);
-      chosen.push(e);
-    }
-    return chosen;
-  }
-
-  async function pickFiveFromApi() {
-    for (let attempt = 0; attempt < 8; attempt++) {
-      try {
-        const events = await fetchDailyEvents();
-        const chosen = selectFive(events);
-        if (chosen.length >= 5) return chosen;
-      } catch (e) { /* On retente avec une autre date */ }
-    }
-    return [];
-  }
-
-  // --- Logique du jeu ---
   function shuffle(arr) {
     const a = arr.slice();
     for (let i = a.length - 1; i > 0; i--) {
@@ -104,6 +69,110 @@
 
   function slotY(index) { return index * (CARD_H + GAP); }
 
+  // ============================================================
+  // OPTIMISATION RÉSEAU (Anti Rate-Limit)
+  // ============================================================
+
+  // 1. Récupère les vues pour une LISTE d'articles en 1 seule requête
+  async function getBatchPageviews(articleTitles) {
+    if (!articleTitles || articleTitles.length === 0) return {};
+
+    const now = new Date();
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const year = lastMonth.getFullYear();
+    const month = String(lastMonth.getMonth() + 1).padStart(2, '0');
+    const start = `${year}${month}01`;
+    const end = `${year}${month}28`;
+
+    // L'API accepte plusieurs titres séparés par | (encodé en %7C)
+    const titles = articleTitles.map(t => encodeURIComponent(t.replace(/ /g, '_'))).join('%7C');
+    
+    // Endpoint optimisé pour plusieurs articles
+    const url = `https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/fr.wikipedia/all-access/user/${titles}/monthly/${start}/${end}`;
+
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return {};
+      
+      const data = await res.json();
+      const viewsMap = {};
+
+      // On remplit le dictionnaire avec le total de vues par article
+      if (data.items) {
+        data.items.forEach(item => {
+          // L'API renvoie le titre avec des underscores, on les remet en espaces
+          const title = item.article.replace(/_/g, ' ');
+          if (!viewsMap[title]) viewsMap[title] = 0;
+          viewsMap[title] += item.views;
+        });
+      }
+      return viewsMap;
+    } catch (e) {
+      console.warn("Erreur pageviews", e);
+      return {};
+    }
+  }
+
+  // 2. Récupère les événements d'une date (1 seule requête)
+  async function fetchEventsForDate(mm, dd) {
+    try {
+      const res = await fetch(`https://fr.wikipedia.org/api/rest_v1/feed/onthisday/events/${mm}/${dd}`);
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.events || [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // 3. Le Cerveau : Prépare les données sans spammer l'API
+  async function prepareGameData(isHardMode = false) {
+    // On tire UNE SEULE date au hasard (1 requête)
+    const { mm, dd } = randomMonthDay();
+    statusEl.textContent = `Chargement des archives du ${dd}/${mm}...`;
+    
+    const events = await fetchEventsForDate(mm, dd);
+
+    // On filtre les événements inutilisables
+    let usable = shuffle(events).filter(e =>
+      e.year && e.pages && e.pages[0] && e.pages[0].extract && !isRecurringEvent(e.text)
+    );
+
+    if (usable.length === 0) return [];
+
+    // Si mode normal, on doit vérifier la popularité
+    if (!isHardMode) {
+      statusEl.textContent = 'Analyse de la popularité...';
+      
+      // On extrait les titres des articles à vérifier (max 50 pour éviter les URL trop longues)
+      const titlesToCheck = usable.slice(0, 50).map(e => e.pages[0].title);
+      
+      // ON FAIT UNE SEULE REQUÊTE POUR TOUS LES ARTICLES (1 requête)
+      const viewsMap = await getBatchPageviews(titlesToCheck);
+
+      // On filtre : on ne garde que ceux qui ont plus de 10 000 vues
+      usable = usable.filter(e => {
+        const title = e.pages[0].title;
+        const views = viewsMap[title] || 0;
+        return views >= 10000; 
+      });
+    }
+
+    // On sélectionne 5 événements avec des années différentes
+    const chosen = [];
+    const usedYears = new Set();
+    
+    for (const e of usable) {
+      if (chosen.length >= 5) break;
+      if (usedYears.has(e.year)) continue;
+      usedYears.add(e.year);
+      chosen.push(e);
+    }
+
+    return chosen;
+  }
+
+  // --- Logique du jeu ---
   function buildRail(n) {
     railEl.innerHTML = '';
     const boardHeight = slotY(n - 1) + CARD_H;
@@ -299,7 +368,7 @@
     statusEl.textContent = 'Fini';
   }
 
-  // --- Nouvelle Partie (Appel API) ---
+  // --- Nouvelle Partie ---
   async function newGame() {
     solved = false;
     dragState = null;
@@ -308,16 +377,39 @@
     resultEl.className = 'result';
     railEl.querySelectorAll('.tick').forEach(t => t.classList.remove('revealed'));
     validateBtn.disabled = true;
-    statusEl.textContent = 'Chargement des données...';
+    newGameBtn.disabled = true;
     
-    // On vide le plateau pendant le chargement
+    // On récupère le mode (Normal par défaut)
+    const modeSelect = document.getElementById('modeSelect');
+    const isHardMode = modeSelect && modeSelect.value === 'hard';
+
+    // On vide le plateau
     boardEl.innerHTML = '';
     boardEl.style.height = '0px';
+    
+    // On tente de charger des données
+    let events = await prepareGameData(isHardMode);
 
-    const events = await pickFiveFromApi();
+    // Si la date n'a pas donné 5 événements, on retente une fois
+    if (events.length < 5) {
+      statusEl.textContent = 'Recherche d\'une autre date...';
+      const { mm, dd } = randomMonthDay();
+      const fallbackEvents = await fetchEventsForDate(mm, dd);
+      
+      // On refait un tri rapide (en mode facile on ne re-filtre pas pour gagner du temps)
+      let usable = shuffle(fallbackEvents).filter(e => e.year && !isRecurringEvent(e.text));
+      events = [];
+      const usedYears = new Set();
+      for (const e of usable) {
+        if (events.length >= 5) break;
+        if (usedYears.has(e.year)) continue;
+        usedYears.add(e.year);
+        events.push(e);
+      }
+    }
 
     if (events.length < 5) {
-      statusEl.textContent = 'Erreur de connexion. Réessaie.';
+      statusEl.textContent = 'Impossible de trouver 5 événements. Réessaie.';
       newGameBtn.disabled = false;
       return;
     }
@@ -340,6 +432,5 @@
   validateBtn.addEventListener('click', checkOrder);
   newGameBtn.addEventListener('click', newGame);
 
-  // Démarrage
   newGame();
 })();
