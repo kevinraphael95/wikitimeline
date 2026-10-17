@@ -16,14 +16,6 @@
   const newGameBtn = document.getElementById('newGameBtn');
   const resultEl = document.getElementById('result');
 
-  const MOCK_DATA = [
-    { text: "Le premier pas sur la Lune par Neil Armstrong", year: 1969 },
-    { text: "Chute du mur de Berlin", year: 1989 },
-    { text: "Fin de la Seconde Guerre mondiale", year: 1945 },
-    { text: "Premier vol motorisé des frères Wright", year: 1903 },
-    { text: "Découverte de la pénicilline par Fleming", year: 1928 }
-  ];
-
   // --- Thème ---
   const currentTheme = localStorage.getItem('theme') || 'light';
   document.documentElement.setAttribute('data-theme', currentTheme);
@@ -39,7 +31,68 @@
 
   resultEl.addEventListener('click', () => resultEl.classList.remove('show'));
 
-  // --- Logique ---
+  // --- API WIKIPÉDIA ---
+  const DAYS_IN_MONTH = [31,28,31,30,31,30,31,31,30,31,30,31];
+  const RECURRING_KEYWORDS = [
+    'élection', 'référendum', 'referendum', 'jeux olympiques', 'jeux paralympiques',
+    'championnat', 'coupe du monde', 'grand prix', 'festival de cannes', 'oscars',
+    'grammy', 'eurovision', 'sommet'
+  ];
+
+  function isRecurringEvent(text) {
+    if (!text) return false;
+    const t = text.toLowerCase();
+    return RECURRING_KEYWORDS.some(k => t.includes(k));
+  }
+
+  function randomMonthDay() {
+    const month = Math.floor(Math.random() * 12) + 1;
+    const day = Math.floor(Math.random() * DAYS_IN_MONTH[month - 1]) + 1;
+    return { mm: String(month).padStart(2, '0'), dd: String(day).padStart(2, '0') };
+  }
+
+  async function fetchDailyEvents() {
+    const { mm, dd } = randomMonthDay();
+    const res = await fetch(`https://fr.wikipedia.org/api/rest_v1/feed/onthisday/events/${mm}/${dd}`);
+    if (!res.ok) throw new Error('Erreur API');
+    const data = await res.json();
+    return data.events || [];
+  }
+
+  function formatEventTitle(text) {
+    if (!text) return '';
+    let t = text.trim();
+    t = t.charAt(0).toUpperCase() + t.slice(1);
+    return t.replace(/\.$/, '');
+  }
+
+  function selectFive(events) {
+    const usable = shuffle(events).filter(e =>
+      e.year && e.pages && e.pages[0] && e.pages[0].extract && !isRecurringEvent(e.text)
+    );
+    const chosen = [];
+    const usedYears = new Set();
+    for (const e of usable) {
+      if (chosen.length >= 5) break;
+      if (usedYears.has(e.year)) continue;
+      usedYears.add(e.year);
+      chosen.push(e);
+    }
+    return chosen;
+  }
+
+  async function pickFiveFromApi() {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      try {
+        const events = await fetchDailyEvents();
+        const chosen = selectFive(events);
+        if (chosen.length >= 5) return chosen;
+      } catch (e) { /* On retente avec une autre date */ }
+    }
+    return [];
+  }
+
+  // --- Logique du jeu ---
   function shuffle(arr) {
     const a = arr.slice();
     for (let i = a.length - 1; i > 0; i--) {
@@ -51,7 +104,6 @@
 
   function slotY(index) { return index * (CARD_H + GAP); }
 
-  // --- Rail corrigé via JS ---
   function buildRail(n) {
     railEl.innerHTML = '';
     const boardHeight = slotY(n - 1) + CARD_H;
@@ -199,17 +251,14 @@
     });
   }
 
-  // --- Validation Intelligente ---
+  // --- Validation ---
   function checkOrder() {
     if (solved) return;
     solved = true;
     validateBtn.disabled = true;
     statusEl.textContent = 'Vérification...';
 
-    // On trie une copie de l'ordre pour avoir la référence parfaite
     const correctOrder = order.slice().sort((a, b) => a.year - b.year);
-    
-    // On crée un dictionnaire des positions parfaites
     const correctPositions = {};
     correctOrder.forEach((item, index) => {
       correctPositions[item._id] = index;
@@ -223,7 +272,6 @@
       
       yearEl.textContent = item.year;
       
-      // On compare l'index actuel de la carte avec son index parfait
       const isCorrect = correctPositions[item._id] === idx;
       
       if (isCorrect) {
@@ -244,7 +292,6 @@
     if (allCorrect) {
       resultEl.textContent = 'Parfait ! L\'ordre est exact.';
     } else {
-      // On compte combien de cartes sont bien placées
       const correctCount = order.filter((item, idx) => correctPositions[item._id] === idx).length;
       resultEl.textContent = `Presque ! ${correctCount} carte(s) sur 5 sont à la bonne place.`;
     }
@@ -252,28 +299,47 @@
     statusEl.textContent = 'Fini';
   }
 
-  function newGame() {
+  // --- Nouvelle Partie (Appel API) ---
+  async function newGame() {
     solved = false;
     dragState = null;
     if (animationFrameId) cancelAnimationFrame(animationFrameId);
     
     resultEl.className = 'result';
     railEl.querySelectorAll('.tick').forEach(t => t.classList.remove('revealed'));
-    validateBtn.disabled = false;
-    statusEl.textContent = 'Prêt';
+    validateBtn.disabled = true;
+    statusEl.textContent = 'Chargement des données...';
+    
+    // On vide le plateau pendant le chargement
+    boardEl.innerHTML = '';
+    boardEl.style.height = '0px';
 
-    const enriched = MOCK_DATA.map((e, i) => ({
-      ...e,
+    const events = await pickFiveFromApi();
+
+    if (events.length < 5) {
+      statusEl.textContent = 'Erreur de connexion. Réessaie.';
+      newGameBtn.disabled = false;
+      return;
+    }
+
+    const enriched = events.map((e, i) => ({
+      text: formatEventTitle(e.text),
+      year: e.year,
       _id: i + '-' + Date.now(),
     }));
 
     order = shuffle(enriched);
     buildRail(order.length);
     render();
+
+    validateBtn.disabled = false;
+    newGameBtn.disabled = false;
+    statusEl.textContent = 'Prêt';
   }
 
   validateBtn.addEventListener('click', checkOrder);
   newGameBtn.addEventListener('click', newGame);
 
+  // Démarrage
   newGame();
 })();
