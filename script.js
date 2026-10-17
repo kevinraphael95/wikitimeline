@@ -1,10 +1,13 @@
 (function() {
-  const GAP = 12; // Espace entre les cartes
-  
+  const GAP = 12;                 // Espace entre les cartes
+  const CARDS_PER_GAME = 5;
+  const MAX_ATTEMPTS = 5;         // Nombre de dates essayées avant d'abandonner
+  const POPULARITY_MIN = 10000;   // Vues minimum sur 30 jours (mode Normal)
+
   let order = [];
   let solved = false;
   let cardEls = {};
-  
+
   let dragState = null;
   let animationFrameId = null;
 
@@ -18,15 +21,15 @@
   const modeSelect = document.getElementById('modeSelect');
 
   // --- Thème ---
-  const currentTheme = localStorage.getItem('theme') || 'light';
-  document.documentElement.setAttribute('data-theme', currentTheme);
-  themeToggle.textContent = currentTheme === 'dark' ? '☀️' : '🌙';
+  // Le thème initial est posé sur <html> par le script du <head> (aucun flash).
+  const root = document.documentElement;
+  themeToggle.textContent = root.dataset.theme === 'dark' ? '☀️' : '🌙';
 
   themeToggle.addEventListener('click', () => {
-    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    const newTheme = isDark ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', newTheme);
-    localStorage.setItem('theme', newTheme);
+    const newTheme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+    root.dataset.theme = newTheme;
+    root.style.colorScheme = newTheme;
+    try { localStorage.setItem('theme', newTheme); } catch (e) {}
     themeToggle.textContent = newTheme === 'dark' ? '☀️' : '🌙';
   });
 
@@ -42,6 +45,15 @@
     return RECURRING_KEYWORDS.some(k => t.includes(k));
   }
 
+  // L'année apparaît-elle dans le titre ou la description ? (spoiler)
+  function leaksYear(e) {
+    const y = String(Math.abs(e.year));
+    // Les titres de l'API ont des underscores ; \b ne les traite pas comme des
+    // séparateurs, donc on les remplace par des espaces avant le test.
+    const haystack = ((e.text || '') + ' ' + ((e.pages && e.pages[0] && e.pages[0].title) || '')).replace(/_/g, ' ');
+    return new RegExp('\\b' + y + '\\b').test(haystack);
+  }
+
   function randomMonthDay() {
     const month = Math.floor(Math.random() * 12) + 1;
     const day = Math.floor(Math.random() * DAYS_IN_MONTH[month - 1]) + 1;
@@ -51,19 +63,24 @@
   function cleanText(text) {
     if (!text) return '';
     let t = text.trim();
-    t = t.replace(/_/g, ' '); 
-    t = t.replace(/\[.*?\]/g, ''); 
-    t = t.replace(/\s+/g, ' '); 
-    t = t.replace(/\s+([.,;:!?])/g, '$1'); 
+    t = t.replace(/_/g, ' ');
+    t = t.replace(/\[.*?\]/g, '');
+    t = t.replace(/\s+/g, ' ');
+    t = t.replace(/\s+([.,;:!?])/g, '$1');
     t = t.charAt(0).toUpperCase() + t.slice(1);
     return t.replace(/\.$/, '').trim();
   }
 
   function cleanArticleTitle(title) {
     if (!title) return '';
-    let t = title.replace(/_/g, ' '); 
-    t = t.replace(/\s*\([0-9]{3,4}(?:\s*-\s*[0-9]{3,4})?\)\s*$/, ''); 
+    let t = title.replace(/_/g, ' ');
+    t = t.replace(/\s*\([0-9]{3,4}(?:\s*-\s*[0-9]{3,4})?\)\s*$/, '');
     return t.trim();
+  }
+
+  // Année affichable : -44 → « 44 av. J.-C. »
+  function formatYear(y) {
+    return y < 0 ? `${-y} av. J.-C.` : String(y);
   }
 
   function shuffle(arr) {
@@ -76,29 +93,42 @@
   }
 
   // ============================================================
-  // OPTIMISATION RÉSEAU
+  // DONNÉES (Wikipédia)
   // ============================================================
-  async function getBatchPageviews(articleTitles) {
-    if (!articleTitles || articleTitles.length === 0) return {};
-    const now = new Date();
-    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const start = `${lastMonth.getFullYear()}${String(lastMonth.getMonth() + 1).padStart(2, '0')}01`;
-    const end = `${lastMonth.getFullYear()}${String(lastMonth.getMonth() + 1).padStart(2, '0')}28`;
-    const titles = articleTitles.map(t => encodeURIComponent(t.replace(/ /g, '_'))).join('%7C');
-    const url = `https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/fr.wikipedia/all-access/user/${titles}/monthly/${start}/${end}`;
+  const pageKey = (e) => e.pages[0].title.replace(/_/g, ' ');
+
+  // Vues sur les 30 derniers jours pour jusqu'à 50 articles, en UNE requête
+  // (API Action de Wikipédia). Renvoie null si la requête échoue, pour que
+  // l'appelant puisse ignorer le filtre de popularité au lieu de tout rejeter.
+  async function getBatchPageviews(titles) {
+    if (!titles || !titles.length) return {};
+    const url = 'https://fr.wikipedia.org/w/api.php?action=query&prop=pageviews&pvipdays=30'
+      + '&format=json&origin=*&redirects=1&titles=' + encodeURIComponent(titles.join('|'));
     try {
       const res = await fetch(url);
-      if (!res.ok) return {};
+      if (!res.ok) return null;
       const data = await res.json();
-      const viewsMap = {};
-      if (data.items) {
-        data.items.forEach(item => {
-          const title = item.article.replace(/_/g, ' ');
-          viewsMap[title] = (viewsMap[title] || 0) + item.views;
-        });
-      }
-      return viewsMap;
-    } catch (e) { return {}; }
+      const q = data.query || {};
+
+      // Chemin « titre demandé → titre normalisé → cible de redirection »
+      const alias = {};
+      (q.normalized || []).forEach(n => { alias[n.from] = n.to; });
+      (q.redirects || []).forEach(r => { alias[r.from] = r.to; });
+
+      const viewsByTitle = {};
+      Object.values(q.pages || {}).forEach(p => {
+        viewsByTitle[p.title] = Object.values(p.pageviews || {})
+          .reduce((sum, v) => sum + (v || 0), 0);
+      });
+
+      const out = {};
+      titles.forEach(t => {
+        let x = t;
+        for (let i = 0; i < 3 && alias[x]; i++) x = alias[x];
+        if (x in viewsByTitle) out[t] = viewsByTitle[x];
+      });
+      return out;
+    } catch (e) { return null; }
   }
 
   async function fetchEventsForDate(mm, dd) {
@@ -109,25 +139,19 @@
     } catch (e) { return []; }
   }
 
-  async function prepareGameData(isHardMode = false) {
-    const { mm, dd } = randomMonthDay();
-    statusEl.textContent = `Chargement du ${dd}/${mm}...`;
-    const events = await fetchEventsForDate(mm, dd);
-    let usable = shuffle(events).filter(e => e.year && e.pages && e.pages[0] && e.pages[0].extract && !isRecurringEvent(e.text));
+  function isUsableEvent(e) {
+    return Number.isFinite(e.year)
+      && e.pages && e.pages[0] && e.pages[0].title
+      && !isRecurringEvent(e.text)
+      && !leaksYear(e);
+  }
 
-    if (usable.length === 0) return [];
-
-    if (!isHardMode) {
-      statusEl.textContent = 'Analyse de la popularité...';
-      const titlesToCheck = usable.slice(0, 50).map(e => e.pages[0].title);
-      const viewsMap = await getBatchPageviews(titlesToCheck);
-      usable = usable.filter(e => (viewsMap[e.pages[0].title] || 0) >= 10000);
-    }
-
+  // Garde au plus `count` événements, tous d'années différentes
+  function pickDistinctYears(list, count) {
     const chosen = [];
     const usedYears = new Set();
-    for (const e of usable) {
-      if (chosen.length >= 5) break;
+    for (const e of list) {
+      if (chosen.length >= count) break;
       if (usedYears.has(e.year)) continue;
       usedYears.add(e.year);
       chosen.push(e);
@@ -135,10 +159,29 @@
     return chosen;
   }
 
+  // Essaie UNE date au hasard
+  async function tryRandomDate(usePopularity) {
+    const { mm, dd } = randomMonthDay();
+    statusEl.textContent = `Chargement du ${dd}/${mm}...`;
+    const events = await fetchEventsForDate(mm, dd);
+    let usable = shuffle(events).filter(isUsableEvent);
+
+    if (usePopularity && usable.length) {
+      statusEl.textContent = 'Analyse de la popularité...';
+      const sample = usable.slice(0, 50);
+      const views = await getBatchPageviews(sample.map(pageKey));
+      // Si l'API de stats est indisponible (null), on garde tout l'échantillon
+      usable = views
+        ? sample.filter(e => (views[pageKey(e)] || 0) >= POPULARITY_MIN)
+        : sample;
+    }
+    return pickDistinctYears(usable, CARDS_PER_GAME);
+  }
+
   // ============================================================
   // LOGIQUE DE RENDU DYNAMIQUE
   // ============================================================
-  
+
   function layout(excludeId) {
     let currentY = 0;
     order.forEach((item) => {
@@ -149,13 +192,14 @@
         el.style.transition = 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
         el.style.transform = `translateY(${currentY}px)`;
       }
-      
-      // On ajoute la hauteur réelle + l'espace
+
+      // Hauteur réelle + espace
       currentY += el.offsetHeight + GAP;
     });
 
-    boardEl.style.height = (currentY - GAP) + 'px';
-    railEl.style.height = (currentY - GAP) + 'px';
+    const total = Math.max(0, currentY - GAP);
+    boardEl.style.height = total + 'px';
+    railEl.style.height = total + 'px';
     updateRail();
   }
 
@@ -169,11 +213,13 @@
     order.forEach((item, i) => {
       const el = cardEls[item._id];
       if (!el) return;
-      
+
       const cardHeight = el.offsetHeight;
       ticksData.push({ top: currentY + cardHeight / 2, index: i });
       currentY += cardHeight + GAP;
     });
+
+    if (!ticksData.length) return;
 
     const line = document.createElement('div');
     line.className = 'rail-line';
@@ -184,8 +230,8 @@
     ticksData.forEach(t => {
       const tick = document.createElement('div');
       tick.className = 'tick';
-      if (solved && resultEl.classList.contains('win')) tick.classList.add('revealed');
-      tick.style.top = (t.top - 6) + 'px'; 
+      if (solved) tick.classList.add('revealed');
+      tick.style.top = (t.top - 6) + 'px';
       tick.dataset.index = t.index;
       railEl.appendChild(tick);
     });
@@ -194,7 +240,7 @@
   function render() {
     boardEl.innerHTML = '';
     cardEls = {};
-    
+
     order.forEach((item) => {
       const card = document.createElement('div');
       card.className = 'card';
@@ -206,29 +252,30 @@
 
       const content = document.createElement('div');
       content.className = 'content';
-      
+
       const title = document.createElement('div');
       title.className = 'title';
       title.textContent = item.text;
-      
+
       const desc = document.createElement('div');
       desc.className = 'description';
-      desc.textContent = item.description; 
-      
+      desc.textContent = item.description;
+
+      // L'année est à droite de la carte : elle ne prend plus de hauteur
       const year = document.createElement('div');
       year.className = 'year';
-      year.textContent = item.year;
-      
+      year.textContent = formatYear(item.year);
+
       content.appendChild(title);
       content.appendChild(desc);
-      content.appendChild(year);
-      
+
       card.appendChild(grip);
       card.appendChild(content);
+      card.appendChild(year);
 
       cardEls[item._id] = card;
       boardEl.appendChild(card);
-      
+
       attachDrag(card, item);
     });
 
@@ -239,26 +286,43 @@
     });
   }
 
+  // Les hauteurs changent quand les polices finissent de charger ou quand la
+  // largeur du plateau change (redimensionnement, rotation du téléphone) :
+  // on recalcule alors la mise en page.
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => { if (order.length && !dragState) layout(null); });
+  }
+  let lastBoardWidth = 0;
+  new ResizeObserver((entries) => {
+    const w = entries[0].contentRect.width;
+    if (w === lastBoardWidth) return;
+    lastBoardWidth = w;
+    if (order.length && !dragState) layout(null);
+  }).observe(boardEl);
+
   // --- Drag & Drop ---
   function attachDrag(card, item) {
     card.addEventListener('pointerdown', (e) => {
-      if (solved) return;
+      if (solved || dragState) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      // Au doigt, on ne déplace une carte que par sa poignée : le reste de la
+      // carte reste utilisable pour faire défiler la page.
+      if (e.pointerType === 'touch' && !e.target.closest('.grip')) return;
+
       if (animationFrameId) cancelAnimationFrame(animationFrameId);
 
       const rect = card.getBoundingClientRect();
-      const offsetY = e.clientY - rect.top; 
-      const startIndex = order.findIndex(o => o._id === item._id);
-      
+      const offsetY = e.clientY - rect.top;
+
       card.setPointerCapture(e.pointerId);
       card.classList.add('dragging');
-      card.style.transition = 'none'; 
+      card.style.transition = 'none';
 
       dragState = {
         card,
         item,
         pointerY: e.clientY,
-        offsetY,
-        startIndex
+        offsetY
       };
 
       function animate() {
@@ -266,12 +330,12 @@
 
         const boardRect = boardEl.getBoundingClientRect();
         const pointerY = dragState.pointerY - boardRect.top;
-        
+
         let t = pointerY - dragState.offsetY;
-        
+
         const totalHeight = boardEl.offsetHeight - dragState.card.offsetHeight;
         t = Math.max(0, Math.min(totalHeight, t));
-        
+
         dragState.card.style.transform = `translateY(${t}px)`;
 
         const cardCenter = t + (dragState.card.offsetHeight / 2);
@@ -281,7 +345,7 @@
         for (let i = 0; i < order.length; i++) {
           const el = cardEls[order[i]._id];
           const h = el.offsetHeight;
-          
+
           if (cardCenter > currentY + h / 2) {
             candidateIndex = i;
           } else {
@@ -291,7 +355,7 @@
         }
 
         const currentIndex = order.findIndex(o => o._id === dragState.item._id);
-        
+
         if (candidateIndex !== currentIndex && candidateIndex >= 0 && candidateIndex < order.length) {
           const [moved] = order.splice(currentIndex, 1);
           order.splice(candidateIndex, 0, moved);
@@ -309,15 +373,18 @@
 
       function onUp() {
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
-        if (dragState) {
-          dragState.card.style.transition = 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
+        animationFrameId = null;
+
+        // On libère dragState tout de suite : un nouveau drag peut démarrer
+        // pendant l'animation de retour sans être annulé par un timeout.
+        const s = dragState;
+        dragState = null;
+
+        if (s) {
+          s.card.style.transition = 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
           layout(null);
-          dragState.card.classList.remove('dragging');
-          
-          setTimeout(() => { 
-            if (dragState) dragState.card.style.transition = '';
-            dragState = null; 
-          }, 300);
+          s.card.classList.remove('dragging');
+          setTimeout(() => { s.card.style.transition = ''; }, 300);
         }
         card.removeEventListener('pointermove', onMove);
         card.removeEventListener('pointerup', onUp);
@@ -348,7 +415,7 @@
     order.forEach((item, idx) => {
       const card = cardEls[item._id];
       const isCorrect = correctPositions[item._id] === idx;
-      
+
       if (isCorrect) {
         card.classList.add('correct');
       } else {
@@ -357,19 +424,17 @@
       }
     });
 
-    updateRail();
-    const ticks = railEl.querySelectorAll('.tick');
-    ticks.forEach(t => t.classList.add('revealed'));
+    updateRail(); // `solved` est vrai : les repères sont révélés
 
     resultEl.className = 'result show ' + (allCorrect ? 'win' : 'lose');
-    
+
     if (allCorrect) {
       resultEl.textContent = 'Parfait ! L\'ordre est exact.';
     } else {
       const correctCount = order.filter((item, idx) => correctPositions[item._id] === idx).length;
-      resultEl.textContent = `Presque ! ${correctCount} carte(s) sur 5 sont à la bonne place.`;
+      resultEl.textContent = `Presque ! ${correctCount} carte(s) sur ${CARDS_PER_GAME} sont à la bonne place.`;
     }
-    
+
     statusEl.textContent = 'Fini';
   }
 
@@ -378,7 +443,7 @@
     solved = false;
     dragState = null;
     if (animationFrameId) cancelAnimationFrame(animationFrameId);
-    
+
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
     resultEl.className = 'result';
@@ -390,40 +455,33 @@
     boardEl.innerHTML = '';
     boardEl.style.height = '0px';
     railEl.style.height = '0px';
-    
-    let events = await prepareGameData(isHardMode);
+    railEl.innerHTML = '';
+    order = [];
+    cardEls = {};
 
-    if (events.length < 5) {
-      statusEl.textContent = 'Recherche d\'une autre date...';
-      const { mm, dd } = randomMonthDay();
-      const fallbackEvents = await fetchEventsForDate(mm, dd);
-      
-      let usable = shuffle(fallbackEvents).filter(e => e.year && !isRecurringEvent(e.text));
-      events = [];
-      const usedYears = new Set();
-      for (const e of usable) {
-        if (events.length >= 5) break;
-        if (usedYears.has(e.year)) continue;
-        usedYears.add(e.year);
-        events.push(e);
+    // On essaie plusieurs dates. En mode Normal, le filtre de popularité est
+    // appliqué sauf à la toute dernière tentative (pour ne pas bloquer le jeu).
+    let events = [];
+    for (let attempt = 0; attempt < MAX_ATTEMPTS && events.length < CARDS_PER_GAME; attempt++) {
+      const usePopularity = !isHardMode && attempt < MAX_ATTEMPTS - 1;
+      events = await tryRandomDate(usePopularity);
+      if (events.length < CARDS_PER_GAME && attempt < MAX_ATTEMPTS - 1) {
+        statusEl.textContent = 'Recherche d\'une autre date...';
       }
     }
 
-    if (events.length < 5) {
+    if (events.length < CARDS_PER_GAME) {
       statusEl.textContent = 'Impossible de trouver 5 événements. Réessaie.';
       newGameBtn.disabled = false;
       return;
     }
 
-    const enriched = events.map((e, i) => {
-      const articleTitle = e.pages[0].title;
-      return {
-        text: cleanArticleTitle(articleTitle), 
-        description: cleanText(e.text),         
-        year: e.year,
-        _id: i + '-' + Date.now(),
-      };
-    });
+    const enriched = events.map((e, i) => ({
+      text: cleanArticleTitle(e.pages[0].title),
+      description: cleanText(e.text),
+      year: e.year,
+      _id: i + '-' + Date.now(),
+    }));
 
     order = shuffle(enriched);
     render();
