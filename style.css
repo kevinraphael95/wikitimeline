@@ -221,16 +221,16 @@ body {
 .card {
   position: absolute;
   left: 0; right: 0; top: 0;
-  /* Plus de hauteur fixe, on laisse le contenu décider */
+  /* On supprime la hauteur fixe pour que ça colle au texte */
   height: auto;
-  min-height: 80px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   display: flex;
-  align-items: center; /* Centre verticalement le contenu (grip + textes) */
+  align-items: center;
   gap: 16px;
-  padding: 14px 20px;
+  /* Padding ajusté pour être compact */
+  padding: 12px 20px; 
   cursor: grab;
   user-select: none;
   touch-action: none;
