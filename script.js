@@ -146,7 +146,7 @@
       const el = cardEls[item._id];
       if (!el) return;
 
-      // Si la carte est celle qu'on drag, on ne touche pas à son Y (c'est la souris qui gère)
+      // Si la carte est celle qu'on drag, on ne touche pas à son Y
       if (item._id !== excludeId) {
         el.style.transition = 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
         el.style.transform = `translateY(${currentY}px)`;
@@ -156,7 +156,7 @@
       currentY += el.offsetHeight + GAP;
     });
 
-    // On ajuste la hauteur du conteneur principal pour que le scroll fonctionne bien
+    // On ajuste la hauteur du conteneur principal
     boardEl.style.height = (currentY - GAP) + 'px';
     railEl.style.height = (currentY - GAP) + 'px';
 
@@ -195,8 +195,7 @@
     ticksData.forEach(t => {
       const tick = document.createElement('div');
       tick.className = 'tick';
-      if (solved && resultEl.classList.contains('win')) tick.classList.add('revealed'); // Si on a gagné
-      // Si c'est l'index validé en mode partiel, on pourrait gérer, mais restons simple
+      if (solved && resultEl.classList.contains('win')) tick.classList.add('revealed');
       tick.style.top = (t.top - 6) + 'px'; 
       tick.dataset.index = t.index;
       railEl.appendChild(tick);
@@ -245,10 +244,8 @@
     });
 
     // On laisse le navigateur calculer la hauteur des textes
-    // Puis on positionne tout correctement
     requestAnimationFrame(() => {
       layout(null);
-      // On réactive les transitions
       Object.values(cardEls).forEach(el => { el.style.transition = ''; });
     });
   }
@@ -327,8 +324,7 @@
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
         if (dragState) {
           dragState.card.style.transition = 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
-          // On le remet à sa place exacte
-          layout(null);
+          layout(null); // On le remet à sa place exacte
           dragState.card.classList.remove('dragging');
           
           setTimeout(() => { 
@@ -397,6 +393,9 @@
     dragState = null;
     if (animationFrameId) cancelAnimationFrame(animationFrameId);
     
+    // Remonte en haut de page
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
     resultEl.className = 'result';
     validateBtn.disabled = true;
     newGameBtn.disabled = true;
