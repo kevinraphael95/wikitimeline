@@ -139,32 +139,26 @@
   // LOGIQUE DE RENDU DYNAMIQUE
   // ============================================================
   
-  // Recalcule la position de toutes les cartes en fonction de leur hauteur réelle
   function layout(excludeId) {
     let currentY = 0;
     order.forEach((item) => {
       const el = cardEls[item._id];
       if (!el) return;
 
-      // Si la carte est celle qu'on drag, on ne touche pas à son Y
       if (item._id !== excludeId) {
         el.style.transition = 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
         el.style.transform = `translateY(${currentY}px)`;
       }
       
-      // On ajoute la hauteur de la carte (offsetHeight) + l'espace
+      // On ajoute la hauteur réelle + l'espace
       currentY += el.offsetHeight + GAP;
     });
 
-    // On ajuste la hauteur du conteneur principal
     boardEl.style.height = (currentY - GAP) + 'px';
     railEl.style.height = (currentY - GAP) + 'px';
-
-    // On redessine le rail
     updateRail();
   }
 
-  // Met à jour la ligne et les points
   function updateRail() {
     railEl.innerHTML = '';
     if (order.length === 0) return;
@@ -172,7 +166,6 @@
     let currentY = 0;
     const ticksData = [];
 
-    // On calcule les positions des ticks
     order.forEach((item, i) => {
       const el = cardEls[item._id];
       if (!el) return;
@@ -182,16 +175,12 @@
       currentY += cardHeight + GAP;
     });
 
-    const totalHeight = currentY - GAP;
-
-    // La ligne
     const line = document.createElement('div');
     line.className = 'rail-line';
     line.style.top = (ticksData[0].top) + 'px';
     line.style.height = (ticksData[ticksData.length - 1].top - ticksData[0].top) + 'px';
     railEl.appendChild(line);
 
-    // Les points
     ticksData.forEach(t => {
       const tick = document.createElement('div');
       tick.className = 'tick';
@@ -243,7 +232,7 @@
       attachDrag(card, item);
     });
 
-    // On laisse le navigateur calculer la hauteur des textes
+    // On laisse le navigateur calculer la hauteur
     requestAnimationFrame(() => {
       layout(null);
       Object.values(cardEls).forEach(el => { el.style.transition = ''; });
@@ -280,13 +269,11 @@
         
         let t = pointerY - dragState.offsetY;
         
-        // Limites (haut et bas)
         const totalHeight = boardEl.offsetHeight - dragState.card.offsetHeight;
         t = Math.max(0, Math.min(totalHeight, t));
         
         dragState.card.style.transform = `translateY(${t}px)`;
 
-        // Détection du changement de place basé sur le centre de la carte
         const cardCenter = t + (dragState.card.offsetHeight / 2);
         let candidateIndex = 0;
         let currentY = 0;
@@ -308,7 +295,7 @@
         if (candidateIndex !== currentIndex && candidateIndex >= 0 && candidateIndex < order.length) {
           const [moved] = order.splice(currentIndex, 1);
           order.splice(candidateIndex, 0, moved);
-          layout(dragState.item._id); // On repositionne les autres cartes
+          layout(dragState.item._id);
         }
 
         animationFrameId = requestAnimationFrame(animate);
@@ -324,7 +311,7 @@
         if (animationFrameId) cancelAnimationFrame(animationFrameId);
         if (dragState) {
           dragState.card.style.transition = 'transform 0.3s cubic-bezier(0.16, 1, 0.3, 1)';
-          layout(null); // On le remet à sa place exacte
+          layout(null);
           dragState.card.classList.remove('dragging');
           
           setTimeout(() => { 
@@ -370,7 +357,6 @@
       }
     });
 
-    // Mise à jour du rail pour allumer les points
     updateRail();
     const ticks = railEl.querySelectorAll('.tick');
     ticks.forEach(t => t.classList.add('revealed'));
@@ -393,7 +379,6 @@
     dragState = null;
     if (animationFrameId) cancelAnimationFrame(animationFrameId);
     
-    // Remonte en haut de page
     window.scrollTo({ top: 0, behavior: 'smooth' });
 
     resultEl.className = 'result';
