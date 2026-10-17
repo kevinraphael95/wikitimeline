@@ -272,6 +272,7 @@ body {
   opacity: 0.4;
   flex-shrink: 0;
   transition: opacity 0.2s;
+  margin: auto 0;
 }
 .grip::before, .grip::after {
   content: '';
