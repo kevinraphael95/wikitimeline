@@ -99,6 +99,7 @@ body {
   align-items: center;
 }
 
+/* Bouton : ne passe jamais à la ligne */
 .btn {
   font-family: var(--font-sans);
   font-size: 0.875rem;
@@ -111,6 +112,7 @@ body {
   color: var(--text-main);
   transition: all 0.2s ease;
   box-shadow: var(--shadow-sm);
+  white-space: nowrap; /* AJOUT : garde le texte sur une ligne */
 }
 
 .btn:hover:not(:disabled) { 
@@ -142,6 +144,7 @@ body {
 
 .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
 
+/* Statut : largeur minimale pour ne pas pousser les boutons */
 .status {
   font-size: 0.875rem;
   font-weight: 500;
@@ -149,6 +152,8 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 200px; /* AJOUT : réserve de la place */
+  white-space: nowrap; /* AJOUT : ne passe pas à la ligne */
 }
 
 .status::before {
@@ -158,6 +163,7 @@ body {
   border-radius: 50%;
   background: var(--primary);
   box-shadow: 0 0 10px var(--primary-glow);
+  flex-shrink: 0;
 }
 
 /* --- Plateau de jeu --- */
@@ -346,4 +352,7 @@ body {
   .rail { display: none; }
   .content { flex-direction: column; align-items: flex-start; gap: 4px; }
   .year { font-size: 1rem; }
+  
+  /* Sur mobile, on enlève la largeur minimale pour laisser de la place */
+  .status { min-width: 0; white-space: normal; }
 }
