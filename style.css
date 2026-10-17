@@ -66,7 +66,7 @@ body {
 
 .app {
   width: 100%;
-  max-width: 900px;
+  max-width: clamp(900px, 62vw, 1100px);
   display: flex;
   flex-direction: column;
   gap: 32px;
@@ -81,7 +81,7 @@ body {
 
 .header-left h1 {
   font-family: var(--font-display);
-  font-size: 2.2rem;
+  font-size: clamp(2rem, 1.5rem + 1.4vw, 2.9rem);
   font-weight: 700;
   letter-spacing: -0.04em;
   line-height: 1.1;
@@ -191,6 +191,8 @@ body {
   position: absolute;
   left: 0;
   width: 24px;
+  height: 10px;
+  transform: translateY(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -200,6 +202,7 @@ body {
 
 .tick::before {
   content: '';
+  box-sizing: border-box;
   width: 10px;
   height: 10px;
   border-radius: 50%;
@@ -228,7 +231,7 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 16px;
+  padding: clamp(14px, 0.9rem + 0.6vw, 22px) 18px;
   cursor: grab;
   user-select: none;
   /* Souris : drag partout sur la carte. Doigt : seule la poignée (.grip)
@@ -255,13 +258,14 @@ body {
 .card.correct { border-color: var(--success); background: var(--success-bg); }
 .card.wrong { border-color: var(--error); background: var(--error-bg); opacity: 0.8; }
 
-/* Poignée de drag : zone tactile agrandie (toute la hauteur de la carte) */
+/* Poignée de drag : zone tactile sur toute la hauteur de la carte.
+   Les points sont dessinés par UN seul élément (grille 2×3 en dégradé radial),
+   donc parfaitement centrés — les anciennes ombres décalaient les points vers le bas. */
 .grip {
   align-self: stretch;
   display: flex;
-  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  gap: 3px;
   padding: 0 10px;
   margin-left: -6px;
   opacity: 0.4;
@@ -269,13 +273,11 @@ body {
   touch-action: none;
   transition: opacity 0.2s;
 }
-.grip::before, .grip::after {
+.grip::before {
   content: '';
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--text-muted);
-  box-shadow: 0 8px 0 var(--text-muted), 0 16px 0 var(--text-muted);
+  width: 10px;
+  height: 18px;
+  background: radial-gradient(circle, var(--text-muted) 1.6px, transparent 1.8px) 0 0 / 5px 6px;
 }
 .card:hover .grip { opacity: 1; }
 
@@ -288,23 +290,17 @@ body {
 }
 
 .title {
-  font-size: 0.95rem;
-  font-weight: 700;
-  line-height: 1.3;
-  color: var(--text-main);
-}
-
-.description {
-  font-size: 0.8rem;
-  color: var(--text-muted);
+  font-size: clamp(1.05rem, 0.95rem + 0.55vw, 1.4rem);
+  font-weight: 600;
   line-height: 1.4;
+  color: var(--text-main);
 }
 
 /* Année : à droite de la carte, cachée jusqu'à la validation.
    Elle réserve de la largeur mais plus de hauteur. */
 .year {
   font-family: var(--font-display);
-  font-size: 1.1rem;
+  font-size: clamp(1.15rem, 1rem + 0.6vw, 1.6rem);
   font-weight: 700;
   color: var(--primary);
   flex-shrink: 0;
@@ -353,5 +349,5 @@ body {
   .board-wrap { gap: 10px; }
   .rail { display: none; }
   .status { min-width: 0; white-space: normal; }
-  .year { padding-left: 8px; font-size: 1rem; }
+  .year { padding-left: 8px; }
 }

@@ -45,13 +45,10 @@
     return RECURRING_KEYWORDS.some(k => t.includes(k));
   }
 
-  // L'année apparaît-elle dans le titre ou la description ? (spoiler)
+  // L'année apparaît-elle dans la phrase affichée ? (spoiler)
   function leaksYear(e) {
     const y = String(Math.abs(e.year));
-    // Les titres de l'API ont des underscores ; \b ne les traite pas comme des
-    // séparateurs, donc on les remplace par des espaces avant le test.
-    const haystack = ((e.text || '') + ' ' + ((e.pages && e.pages[0] && e.pages[0].title) || '')).replace(/_/g, ' ');
-    return new RegExp('\\b' + y + '\\b').test(haystack);
+    return new RegExp('\\b' + y + '\\b').test(e.text || '');
   }
 
   function randomMonthDay() {
@@ -69,13 +66,6 @@
     t = t.replace(/\s+([.,;:!?])/g, '$1');
     t = t.charAt(0).toUpperCase() + t.slice(1);
     return t.replace(/\.$/, '').trim();
-  }
-
-  function cleanArticleTitle(title) {
-    if (!title) return '';
-    let t = title.replace(/_/g, ' ');
-    t = t.replace(/\s*\([0-9]{3,4}(?:\s*-\s*[0-9]{3,4})?\)\s*$/, '');
-    return t.trim();
   }
 
   // Année affichable : -44 → « 44 av. J.-C. »
@@ -231,7 +221,7 @@
       const tick = document.createElement('div');
       tick.className = 'tick';
       if (solved) tick.classList.add('revealed');
-      tick.style.top = (t.top - 6) + 'px';
+      tick.style.top = t.top + 'px';
       tick.dataset.index = t.index;
       railEl.appendChild(tick);
     });
@@ -255,11 +245,7 @@
 
       const title = document.createElement('div');
       title.className = 'title';
-      title.textContent = item.text;
-
-      const desc = document.createElement('div');
-      desc.className = 'description';
-      desc.textContent = item.description;
+      title.textContent = item.description;
 
       // L'année est à droite de la carte : elle ne prend plus de hauteur
       const year = document.createElement('div');
@@ -267,7 +253,6 @@
       year.textContent = formatYear(item.year);
 
       content.appendChild(title);
-      content.appendChild(desc);
 
       card.appendChild(grip);
       card.appendChild(content);
@@ -477,7 +462,6 @@
     }
 
     const enriched = events.map((e, i) => ({
-      text: cleanArticleTitle(e.pages[0].title),
       description: cleanText(e.text),
       year: e.year,
       _id: i + '-' + Date.now(),
