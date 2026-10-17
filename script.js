@@ -129,7 +129,7 @@
   async function prepareGameData(isHardMode = false) {
     // On tire UNE SEULE date au hasard (1 requête)
     const { mm, dd } = randomMonthDay();
-    statusEl.textContent = `Chargement des archives du ${dd}/${mm}...`;
+    statusEl.textContent = `Chargement... (${dd}/${mm})`;
     
     const events = await fetchEventsForDate(mm, dd);
 
