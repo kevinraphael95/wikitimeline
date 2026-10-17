@@ -1,6 +1,8 @@
 (function() {
-  const CARD_H = 90; 
+  // On augmente la hauteur de référence pour les calculs de position
+  const CARD_H = 110; 
   const GAP = 12;
+  
   let order = [];
   let solved = false;
   let cardEls = {};
@@ -15,6 +17,7 @@
   const validateBtn = document.getElementById('validateBtn');
   const newGameBtn = document.getElementById('newGameBtn');
   const resultEl = document.getElementById('result');
+  const modeSelect = document.getElementById('modeSelect');
 
   // --- Thème ---
   const currentTheme = localStorage.getItem('theme') || 'light';
@@ -51,11 +54,15 @@
     return { mm: String(month).padStart(2, '0'), dd: String(day).padStart(2, '0') };
   }
 
+  // Nettoyage renforcé du titre
   function formatEventTitle(text) {
     if (!text) return '';
     let t = text.trim();
+    t = t.replace(/\[.*?\]/g, ''); // Enlève [réf. nécessaire], [1], etc.
+    t = t.replace(/\s+/g, ' '); // Enlève les doubles espaces
+    t = t.replace(/\s+([.,;:!?])/g, '$1'); // Nettoie les espaces avant ponctuation
     t = t.charAt(0).toUpperCase() + t.slice(1);
-    return t.replace(/\.$/, '');
+    return t.replace(/\.$/, '').trim(); // Enlève le point final
   }
 
   function shuffle(arr) {
@@ -70,10 +77,9 @@
   function slotY(index) { return index * (CARD_H + GAP); }
 
   // ============================================================
-  // OPTIMISATION RÉSEAU (Anti Rate-Limit)
+  // OPTIMISATION RÉSEAU
   // ============================================================
 
-  // 1. Récupère les vues pour une LISTE d'articles en 1 seule requête
   async function getBatchPageviews(articleTitles) {
     if (!articleTitles || articleTitles.length === 0) return {};
 
@@ -84,91 +90,78 @@
     const start = `${year}${month}01`;
     const end = `${year}${month}28`;
 
-    // L'API accepte plusieurs titres séparés par | (encodé en %7C)
     const titles = articleTitles.map(t => encodeURIComponent(t.replace(/ /g, '_'))).join('%7C');
-    
-    // Endpoint optimisé pour plusieurs articles
     const url = `https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/fr.wikipedia/all-access/user/${titles}/monthly/${start}/${end}`;
 
     try {
       const res = await fetch(url);
       if (!res.ok) return {};
-      
       const data = await res.json();
       const viewsMap = {};
-
-      // On remplit le dictionnaire avec le total de vues par article
       if (data.items) {
         data.items.forEach(item => {
-          // L'API renvoie le titre avec des underscores, on les remet en espaces
           const title = item.article.replace(/_/g, ' ');
           if (!viewsMap[title]) viewsMap[title] = 0;
           viewsMap[title] += item.views;
         });
       }
       return viewsMap;
-    } catch (e) {
-      console.warn("Erreur pageviews", e);
-      return {};
-    }
+    } catch (e) { return {}; }
   }
 
-  // 2. Récupère les événements d'une date (1 seule requête)
+  // Récupération des descriptions en parallèle
+  async function getBatchSummaries(pageTitles) {
+    const summaries = {};
+    const promises = pageTitles.map(async (title) => {
+      try {
+        const res = await fetch(`https://fr.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        summaries[title] = data.extract || '';
+      } catch (e) { /* ignore */ }
+    });
+    await Promise.all(promises);
+    return summaries;
+  }
+
   async function fetchEventsForDate(mm, dd) {
     try {
       const res = await fetch(`https://fr.wikipedia.org/api/rest_v1/feed/onthisday/events/${mm}/${dd}`);
       if (!res.ok) return [];
       const data = await res.json();
       return data.events || [];
-    } catch (e) {
-      return [];
-    }
+    } catch (e) { return []; }
   }
 
-  // 3. Le Cerveau : Prépare les données sans spammer l'API
   async function prepareGameData(isHardMode = false) {
-    // On tire UNE SEULE date au hasard (1 requête)
     const { mm, dd } = randomMonthDay();
-    statusEl.textContent = `Chargement... (${dd}/${mm})`;
+    statusEl.textContent = `Chargement du ${dd}/${mm}...`;
     
     const events = await fetchEventsForDate(mm, dd);
-
-    // On filtre les événements inutilisables
     let usable = shuffle(events).filter(e =>
       e.year && e.pages && e.pages[0] && e.pages[0].extract && !isRecurringEvent(e.text)
     );
 
     if (usable.length === 0) return [];
 
-    // Si mode normal, on doit vérifier la popularité
     if (!isHardMode) {
       statusEl.textContent = 'Analyse de la popularité...';
-      
-      // On extrait les titres des articles à vérifier (max 50 pour éviter les URL trop longues)
       const titlesToCheck = usable.slice(0, 50).map(e => e.pages[0].title);
-      
-      // ON FAIT UNE SEULE REQUÊTE POUR TOUS LES ARTICLES (1 requête)
       const viewsMap = await getBatchPageviews(titlesToCheck);
-
-      // On filtre : on ne garde que ceux qui ont plus de 10 000 vues
       usable = usable.filter(e => {
         const title = e.pages[0].title;
-        const views = viewsMap[title] || 0;
-        return views >= 10000; 
+        return (viewsMap[title] || 0) >= 10000;
       });
     }
 
-    // On sélectionne 5 événements avec des années différentes
     const chosen = [];
     const usedYears = new Set();
-    
     for (const e of usable) {
       if (chosen.length >= 5) break;
       if (usedYears.has(e.year)) continue;
       usedYears.add(e.year);
       chosen.push(e);
     }
-
     return chosen;
   }
 
@@ -230,11 +223,18 @@
       title.className = 'title';
       title.textContent = item.text;
       
+      const desc = document.createElement('div');
+      desc.className = 'description';
+      desc.textContent = item.description; 
+      
       const year = document.createElement('div');
       year.className = 'year';
+      year.textContent = item.year; // On met l'année direct, mais elle est cachée par CSS (opacity: 0)
       
       content.appendChild(title);
+      content.appendChild(desc);
       content.appendChild(year);
+      
       card.appendChild(grip);
       card.appendChild(content);
 
@@ -337,9 +337,6 @@
 
     order.forEach((item, idx) => {
       const card = cardEls[item._id];
-      const yearEl = card.querySelector('.year');
-      
-      yearEl.textContent = item.year;
       
       const isCorrect = correctPositions[item._id] === idx;
       
@@ -378,25 +375,19 @@
     railEl.querySelectorAll('.tick').forEach(t => t.classList.remove('revealed'));
     validateBtn.disabled = true;
     newGameBtn.disabled = true;
-    
-    // On récupère le mode (Normal par défaut)
-    const modeSelect = document.getElementById('modeSelect');
-    const isHardMode = modeSelect && modeSelect.value === 'hard';
 
-    // On vide le plateau
+    const isHardMode = modeSelect.value === 'hard';
+
     boardEl.innerHTML = '';
     boardEl.style.height = '0px';
     
-    // On tente de charger des données
     let events = await prepareGameData(isHardMode);
 
-    // Si la date n'a pas donné 5 événements, on retente une fois
     if (events.length < 5) {
       statusEl.textContent = 'Recherche d\'une autre date...';
       const { mm, dd } = randomMonthDay();
       const fallbackEvents = await fetchEventsForDate(mm, dd);
       
-      // On refait un tri rapide (en mode facile on ne re-filtre pas pour gagner du temps)
       let usable = shuffle(fallbackEvents).filter(e => e.year && !isRecurringEvent(e.text));
       events = [];
       const usedYears = new Set();
@@ -414,11 +405,25 @@
       return;
     }
 
-    const enriched = events.map((e, i) => ({
-      text: formatEventTitle(e.text),
-      year: e.year,
-      _id: i + '-' + Date.now(),
-    }));
+    // 1. On prépare les titres des pages pour la requête groupée
+    const titlesToFetch = events.map(e => e.pages[0].title);
+    
+    // 2. On récupère toutes les descriptions en même temps
+    statusEl.textContent = 'Récupération des descriptions...';
+    const summaries = await getBatchSummaries(titlesToFetch);
+
+    // 3. On enrichit nos événements avec le titre propre et la description
+    const enriched = events.map((e, i) => {
+      const pageTitle = e.pages[0].title;
+      const cleanDesc = summaries[pageTitle] || ''; // La description propre
+      
+      return {
+        text: formatEventTitle(e.text), // Le titre (déjà nettoyé)
+        description: cleanDesc,         // La nouvelle description complète
+        year: e.year,
+        _id: i + '-' + Date.now(),
+      };
+    });
 
     order = shuffle(enriched);
     buildRail(order.length);
