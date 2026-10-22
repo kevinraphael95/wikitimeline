@@ -1,5 +1,5 @@
 /* ============================================================
-   DESIGN SYSTEM — Premium SaaS (Linear / Vercel style)
+   WIKI TIMELINE — design system
    ============================================================ */
 :root {
   --bg: #f9fafb;
@@ -24,8 +24,10 @@
   --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.06), 0 2px 4px -1px rgba(0,0,0,0.04);
   --shadow-lg: 0 12px 20px -8px rgba(0,0,0,0.1);
 
-  --font-display: 'Outfit', sans-serif;
-  --font-sans: 'Inter', sans-serif;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --font-display: 'Outfit', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 [data-theme="dark"] {
@@ -54,14 +56,17 @@
 body {
   background-color: var(--bg);
   background-image: radial-gradient(circle at 50% -20%, var(--primary-glow), transparent 40%);
+  background-repeat: no-repeat;
   color: var(--text-main);
   font-family: var(--font-sans);
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   justify-content: center;
   padding: 48px 24px;
   transition: background-color 0.3s ease, color 0.3s ease;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .app {
@@ -72,11 +77,29 @@ body {
   gap: 32px;
 }
 
-/* --- Header --- */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* --- En-tête --- */
 .header {
   display: flex;
   justify-content: space-between;
   align-items: flex-end;
+  gap: 24px;
 }
 
 .header-left h1 {
@@ -93,17 +116,27 @@ body {
   font-size: 0.95rem;
 }
 
+.header-left .stats {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
 .header-right {
   display: flex;
   gap: 12px;
   align-items: center;
 }
 
+/* Rien dans la barre ne doit s’étirer ni se comprimer selon le texte du statut */
+.header-right > * { flex-shrink: 0; }
+
 .btn {
   font-family: var(--font-sans);
   font-size: 0.875rem;
   font-weight: 500;
-  padding: 8px 16px;
+  height: 38px;
+  padding: 0 16px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   border: 1px solid var(--border);
@@ -120,6 +153,8 @@ body {
   box-shadow: var(--shadow-md);
 }
 
+.btn:active:not(:disabled) { transform: translateY(0); }
+
 .btn-primary {
   background: var(--text-main);
   color: var(--bg);
@@ -133,7 +168,6 @@ body {
 
 .btn-icon {
   width: 38px;
-  height: 38px;
   padding: 0;
   display: flex;
   align-items: center;
@@ -143,15 +177,28 @@ body {
 
 .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
 
+/* Sélecteur de difficulté */
+.select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 0 34px 0 14px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2371717a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 13px center;
+}
+
+/* Statut : largeur FIXE, le texte ne pousse plus les boutons */
 .status {
+  width: 200px;
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--text-muted);
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 180px;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .status::before {
@@ -162,6 +209,16 @@ body {
   background: var(--primary);
   box-shadow: 0 0 10px var(--primary-glow);
   flex-shrink: 0;
+}
+
+.status[data-state="loading"]::before { animation: pulse 1s ease-in-out infinite; }
+.status[data-state="ready"]::before   { background: var(--primary); }
+.status[data-state="done"]::before    { background: var(--success); box-shadow: 0 0 10px var(--success-bg); }
+.status[data-state="error"]::before   { background: var(--error);   box-shadow: 0 0 10px var(--error-bg); }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.35; transform: scale(0.75); }
 }
 
 /* --- Plateau de jeu --- */
@@ -196,13 +253,12 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: top 0.3s var(--ease);
   z-index: 2;
 }
 
 .tick::before {
   content: '';
-  box-sizing: border-box;
   width: 10px;
   height: 10px;
   border-radius: 50%;
@@ -218,7 +274,11 @@ body {
   box-shadow: 0 0 0 4px var(--primary-glow);
 }
 
-#board { flex: 1; position: relative; }
+#board {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
 
 /* --- Cartes (hauteur dynamique) --- */
 .card {
@@ -234,11 +294,12 @@ body {
   padding: clamp(12px, 0.7rem + 0.4vw, 18px) 18px;
   cursor: grab;
   user-select: none;
+  -webkit-user-select: none;
   /* Souris : drag partout sur la carte. Doigt : seule la poignée (.grip)
      bloque le défilement, le reste de la carte laisse défiler la page. */
   touch-action: pan-y;
   box-shadow: var(--shadow-sm);
-  transition: box-shadow 0.2s, border-color 0.2s, background 0.2s, opacity 0.2s;
+  transition: box-shadow 0.2s, border-color 0.2s, background 0.2s, opacity 0.2s, scale 0.2s;
   will-change: transform;
 }
 
@@ -250,17 +311,21 @@ body {
 .card.dragging {
   cursor: grabbing;
   z-index: 100;
+  scale: 1.012;
   border-color: var(--primary);
   box-shadow: var(--shadow-lg), 0 0 0 1px var(--primary);
-  background: var(--surface);
 }
 
+/* Reste au-dessus des autres pendant l’animation de retour */
+.card.settling { z-index: 50; }
+
 .card.correct { border-color: var(--success); background: var(--success-bg); }
-.card.wrong { border-color: var(--error); background: var(--error-bg); opacity: 0.8; }
+.card.wrong   { border-color: var(--error);   background: var(--error-bg); opacity: 0.88; }
+
+#board.solved .card { cursor: default; }
 
 /* Poignée de drag : zone tactile sur toute la hauteur de la carte.
-   Les points sont dessinés par UN seul élément (grille 2×3 en dégradé radial),
-   donc parfaitement centrés — les anciennes ombres décalaient les points vers le bas. */
+   Les points sont dessinés par UN seul élément (grille 2×3 en dégradé radial). */
 .grip {
   align-self: stretch;
   display: flex;
@@ -279,7 +344,9 @@ body {
   height: 18px;
   background: radial-gradient(circle, var(--text-muted) 1.6px, transparent 1.8px) 0 0 / 5px 6px;
 }
-.card:hover .grip { opacity: 1; }
+.card:hover .grip,
+.card:focus-visible .grip { opacity: 1; }
+#board.solved .grip { visibility: hidden; }
 
 .content {
   flex: 1;
@@ -296,7 +363,21 @@ body {
   color: var(--text-main);
 }
 
-/* Année : à droite de la carte, cachée jusqu'à la validation.
+/* Lien vers l’article : inerte pendant la partie, actif après validation */
+.title a {
+  color: inherit;
+  text-decoration: none;
+  pointer-events: none;
+}
+#board.solved .title a {
+  pointer-events: auto;
+  text-decoration: underline;
+  text-decoration-color: var(--border-hover);
+  text-underline-offset: 3px;
+}
+#board.solved .title a:hover { text-decoration-color: var(--primary); }
+
+/* Année : à droite de la carte, cachée jusqu’à la validation.
    Elle réserve de la largeur mais plus de hauteur. */
 .year {
   font-family: var(--font-display);
@@ -308,46 +389,63 @@ body {
   padding-left: 12px;
   opacity: 0;
   transform: translateX(-6px);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.3s var(--ease);
 }
 
 .card.correct .year, .card.wrong .year { opacity: 1; transform: translateX(0); }
 .card.correct .year { color: var(--success); }
-.card.wrong .year { color: var(--error); }
+.card.wrong .year   { color: var(--error); }
 
-/* --- Résultat (Popup) --- */
+/* --- Résultat : bannière sous le plateau, ne cache plus les cartes --- */
 .result {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) scale(0.95);
-  padding: 24px 48px;
+  display: none;
+  margin-top: 20px;
+  padding: 14px 20px;
   text-align: center;
   font-family: var(--font-display);
-  font-size: 1.2rem;
+  font-size: 1.05rem;
   font-weight: 600;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
-  display: none;
   background: var(--surface);
   color: var(--text-main);
-  box-shadow: 0 20px 40px rgba(0,0,0,0.2);
-  z-index: 200;
-  opacity: 0;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   cursor: pointer;
 }
 
-.result.show { display: block; opacity: 1; transform: translate(-50%, -50%) scale(1); }
-.result.win { border-color: var(--success); color: var(--success); box-shadow: 0 0 40px var(--success-bg); }
-.result.lose { border-color: var(--error); color: var(--error); box-shadow: 0 0 40px var(--error-bg); }
+.result.show { display: block; animation: pop 0.35s var(--ease); }
+.result.win  { border-color: var(--success); background: var(--success-bg); color: var(--success); }
+.result.lose { border-color: var(--error);   background: var(--error-bg);   color: var(--error); }
 
+@keyframes pop {
+  from { opacity: 0; transform: translateY(6px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+.footer {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.footer a { color: inherit; text-underline-offset: 3px; }
+.footer a:hover { color: var(--primary); }
+
+/* --- Mobile --- */
 @media (max-width: 768px) {
   body { padding: 24px 16px; }
   .header { flex-direction: column; align-items: stretch; gap: 20px; }
-  .header-right { justify-content: space-between; flex-wrap: wrap; }
+  .header-right { flex-wrap: wrap; }
+  .status { order: -1; width: 100%; flex-basis: 100%; }
+  .btn-primary { flex: 1; }
   .board-wrap { gap: 10px; }
   .rail { display: none; }
-  .status { min-width: 0; white-space: normal; }
   .year { padding-left: 8px; }
+}
+
+/* --- Mouvement réduit --- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
