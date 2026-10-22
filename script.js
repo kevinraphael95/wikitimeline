@@ -10,9 +10,9 @@
     ATTEMPTS: { easy: 10, normal: 6, hard: 6 }, // Dates essayées avant d’assouplir
     SAMPLE: 100,                // Événements analysés pour la popularité
     BATCH: 50,                  // Max de titres par requête pageviews
-    FETCH_TIMEOUT: 8000,        // ms
+    FETCH_TIMEOUT: 12000,       // ms
     MIN_YEAR_GAP: 2,            // Écart minimum entre deux années (assoupli en dernier recours)
-    THRESHOLDS: { easy: 60000, normal: 10000, hard: 0 }, // Vues sur 30 jours
+    THRESHOLDS: { easy: 30000, normal: 10000, hard: 0 }, // Vues sur 30 jours
     REORDER_DELAY: 1100,        // ms avant de remettre les cartes dans le bon ordre
     EDGE_SCROLL: 70             // Zone de défilement auto en bord d’écran (px)
   };
@@ -224,32 +224,48 @@
     return events;
   }
 
-  // Vues sur 30 jours pour jusqu’à 50 articles, en UNE requête. Renvoie null
-  // en cas d’échec : l’appelant ignore alors le filtre au lieu de tout rejeter.
+  const viewsCache = new Map(); // titre -> vues sur 30 jours
+
+  // Vues sur 30 jours pour une liste de titres (50 max). L'API peut répondre en
+  // PLUSIEURS morceaux (champ "continue") : on suit la suite jusqu'au bout, sinon
+  // des articles sans données seraient comptés à 0 vue. Renvoie null en cas
+  // d'échec : l'appelant ignore alors le filtre au lieu de tout rejeter.
   async function getBatchPageviews(titles) {
-    if (!titles.length) return {};
-    const url = 'https://fr.wikipedia.org/w/api.php?action=query&prop=pageviews&pvipdays=30'
-      + '&format=json&origin=*&redirects=1&titles=' + encodeURIComponent(titles.join('|'));
-    const data = await fetchJson(url);
-    if (!data) return null;
+    const missing = titles.filter((t) => !viewsCache.has(t));
 
-    const q = data.query || {};
-    // Chemin « titre demandé → titre normalisé → cible de redirection »
-    const alias = {};
-    (q.normalized || []).forEach((n) => { alias[n.from] = n.to; });
-    (q.redirects || []).forEach((r) => { alias[r.from] = r.to; });
+    if (missing.length) {
+      const base = 'https://fr.wikipedia.org/w/api.php?action=query&prop=pageviews&pvipdays=30'
+        + '&format=json&origin=*&redirects=1&titles=' + encodeURIComponent(missing.join('|'));
+      const alias = {};
+      const daily = {}; // titre final -> { date: vues }
+      let extra = '';
+      let finished = false;
 
-    const viewsByTitle = {};
-    Object.values(q.pages || {}).forEach((p) => {
-      viewsByTitle[p.title] = Object.values(p.pageviews || {}).reduce((sum, v) => sum + (v || 0), 0);
-    });
+      for (let round = 0; round < 10; round++) {
+        const data = await fetchJson(base + extra);
+        if (!data) return null;
+        const q = data.query || {};
+        (q.normalized || []).forEach((n) => { alias[n.from] = n.to; });
+        (q.redirects || []).forEach((r) => { alias[r.from] = r.to; });
+        Object.values(q.pages || {}).forEach((p) => {
+          daily[p.title] = Object.assign(daily[p.title] || {}, p.pageviews || {});
+        });
+        if (!data.continue) { finished = true; break; }
+        extra = '&' + Object.entries(data.continue)
+          .map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
+      }
+
+      missing.forEach((t) => {
+        let x = t;
+        for (let i = 0; i < 3 && alias[x]; i++) x = alias[x];
+        const d = daily[x];
+        if (d) viewsCache.set(t, Object.values(d).reduce((sum, v) => sum + (v || 0), 0));
+        else if (finished) viewsCache.set(t, 0);
+      });
+    }
 
     const out = {};
-    titles.forEach((t) => {
-      let x = t;
-      for (let i = 0; i < 3 && alias[x]; i++) x = alias[x];
-      if (x in viewsByTitle) out[t] = viewsByTitle[x];
-    });
+    titles.forEach((t) => { if (viewsCache.has(t)) out[t] = viewsCache.get(t); });
     return out;
   }
 
@@ -451,19 +467,18 @@
     const t = Math.max(0, Math.min(maxT, clientY - boardRect.top - offsetY));
     card.style.transform = `translateY(${t}px)`;
 
-    // Index cible selon le centre de la carte
-    const center = t + card.offsetHeight / 2;
+    // Position cible : on prend l'emplacement le plus proche du haut de la carte,
+    // en ne comptant QUE les autres cartes. Le résultat ne dépend que de la
+    // position du pointeur, donc plus de va-et-vient quand les hauteurs diffèrent.
+    const others = order.filter((o) => o.id !== dragState.id);
     let candidate = 0;
-    let y = 0;
-    for (let i = 0; i < order.length; i++) {
-      const h = cardEls[order[i].id].offsetHeight;
-      if (center > y + h / 2) candidate = i; else break;
-      y += h + CONFIG.GAP;
+    let best = Infinity;
+    let slotTop = 0;
+    for (let i = 0; i <= others.length; i++) {
+      const d = Math.abs(t - slotTop);
+      if (d < best) { best = d; candidate = i; }
+      if (i < others.length) slotTop += cardEls[others[i].id].offsetHeight + CONFIG.GAP;
     }
-    // Carte plus haute que sa voisine : son centre n'atteint jamais le seuil.
-    // Arrivée en butée basse/haute = dernière/première place.
-    if (t >= maxT - 2) candidate = order.length - 1;
-    else if (t <= 2) candidate = 0;
 
     const current = order.findIndex((o) => o.id === dragState.id);
     if (candidate !== current) {
