@@ -581,18 +581,39 @@
   resultEl.addEventListener('click', hideResult);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideResult(); });
 
+  // Plus grand groupe de cartes déjà dans le bon ordre les unes par rapport aux
+  // autres (plus longue suite croissante). Une carte posée trop loin ne fait
+  // donc pas passer toutes les autres en rouge.
+  function longestOrderedSet(items) {
+    const n = items.length;
+    const len = new Array(n).fill(1);
+    const prev = new Array(n).fill(-1);
+    let end = 0;
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < i; j++) {
+        if (items[j].year < items[i].year && len[j] + 1 > len[i]) {
+          len[i] = len[j] + 1;
+          prev[i] = j;
+        }
+      }
+      if (len[i] > len[end]) end = i;
+    }
+    const ids = new Set();
+    for (let k = end; k !== -1; k = prev[k]) ids.add(items[k].id);
+    return ids;
+  }
+
   function checkOrder() {
     if (solved || loading || !order.length) return;
     solved = true;
     validateBtn.disabled = true;
 
     const correct = order.slice().sort((a, b) => a.year - b.year);
-    const rightPlace = {};
-    correct.forEach((item, i) => { rightPlace[item.id] = i; });
+    const inOrder = longestOrderedSet(order);
 
     let correctCount = 0;
-    order.forEach((item, idx) => {
-      const ok = rightPlace[item.id] === idx;
+    order.forEach((item) => {
+      const ok = inOrder.has(item.id);
       if (ok) correctCount++;
       cardEls[item.id].classList.add(ok ? 'correct' : 'wrong');
       cardEls[item.id].classList.remove('settling', 'dragging');
@@ -609,9 +630,9 @@
     if (perfect) {
       showResult('win', 'Parfait ! L’ordre est exact.');
     } else {
-      showResult('lose', `Presque ! ${correctCount} carte(s) sur ${CONFIG.CARDS} à la bonne place.`);
+      showResult('lose', `Presque ! ${correctCount} carte(s) sur ${CONFIG.CARDS} dans le bon ordre entre elles.`);
     }
-    setStatus(perfect ? 'Parfait !' : `${correctCount}/${CONFIG.CARDS} bien placées`, 'done');
+    setStatus(perfect ? 'Parfait !' : `${correctCount}/${CONFIG.CARDS} bien ordonnées`, 'done');
 
     // Après un court instant, les cartes se rangent dans le bon ordre
     reorderTimer = setTimeout(() => {
