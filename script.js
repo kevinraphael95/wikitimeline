@@ -460,6 +460,10 @@
       if (center > y + h / 2) candidate = i; else break;
       y += h + CONFIG.GAP;
     }
+    // Carte plus haute que sa voisine : son centre n'atteint jamais le seuil.
+    // Arrivée en butée basse/haute = dernière/première place.
+    if (t >= maxT - 2) candidate = order.length - 1;
+    else if (t <= 2) candidate = 0;
 
     const current = order.findIndex((o) => o.id === dragState.id);
     if (candidate !== current) {
