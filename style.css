@@ -421,6 +421,9 @@ body {
   to   { opacity: 1; transform: none; }
 }
 
+/* Le contenu prend la place restante : le pied de page reste tout en bas */
+main { flex: 1; }
+
 .footer {
   text-align: center;
   font-size: 0.8rem;
