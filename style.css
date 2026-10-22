@@ -429,13 +429,28 @@ body {
 .footer a { color: inherit; text-underline-offset: 3px; }
 .footer a:hover { color: var(--primary); }
 
-/* --- Mobile --- */
+/* --- Mobile : en-tête compact (statut fin + une seule ligne de boutons) --- */
 @media (max-width: 768px) {
-  body { padding: 24px 16px; }
-  .header { flex-direction: column; align-items: stretch; gap: 20px; }
-  .header-right { flex-wrap: wrap; }
-  .status { order: -1; width: 100%; flex-basis: 100%; }
-  .btn-primary { flex: 1; }
+  body { padding: 20px 16px; }
+  .app { gap: 20px; }
+
+  .header { position: relative; flex-direction: column; align-items: stretch; gap: 12px; }
+  .header-left h1 { padding-right: 48px; margin-bottom: 4px; }
+
+  /* Le bouton thème sort de la grille : il se range en haut à droite, à côté du titre */
+  .btn-icon { position: absolute; top: 0; right: 0; }
+
+  /* Statut sur une ligne fine, puis Difficulté | Valider | Nouvelle partie sur UNE ligne */
+  .header-right {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    gap: 8px;
+    align-items: center;
+  }
+  .status { grid-column: 1 / -1; width: 100%; font-size: 0.8rem; }
+  .header-right > .btn { height: 40px; padding: 0 12px; font-size: 0.85rem; }
+  .select { padding-right: 30px; background-position: right 11px center; }
+
   .board-wrap { gap: 10px; }
   .rail { display: none; }
   .year { padding-left: 8px; }
