@@ -1,14 +1,13 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="color-scheme" content="light dark">
-<meta name="description" content="Replacez cinq événements tirés de Wikipédia dans l’ordre chronologique.">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="light dark" />
+<meta name="description" content="Replacez cinq événements tirés de Wikipédia dans l’ordre chronologique." />
 <title>Wiki Timeline</title>
 
-<!-- Thème appliqué AVANT le chargement du CSS : pas de flash clair/sombre.
-     Clé "theme" ; sinon on suit la préférence du système. -->
+<!-- Thème appliqué AVANT le CSS : pas de flash clair/sombre (clé "theme", sinon préférence système) -->
 <script>
   (function () {
     var t = "light";
@@ -16,60 +15,65 @@
       t = localStorage.getItem("theme") ||
           (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
     } catch (e) {}
-    var r = document.documentElement;
-    r.dataset.theme = t;
-    r.style.colorScheme = t;
+    document.documentElement.dataset.theme = t;
+    document.documentElement.style.colorScheme = t;
   })();
 </script>
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preconnect" href="https://fr.wikipedia.org" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="preconnect" href="https://fr.wikipedia.org" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="style.css" />
 </head>
 <body>
-
 <div class="app">
-  <header class="header">
-    <div class="header-left">
-      <h1>Wiki Timeline</h1>
-      <p>Replacez les événements dans l’ordre chronologique.</p>
-      <p class="stats" id="stats"></p>
+
+  <header class="top">
+    <div class="brand"><span class="brand__mark" aria-hidden="true">W</span>Wiki Timeline</div>
+    <div class="top__right">
+      <div class="stats" role="group" aria-label="Statistiques">
+        <div class="stat" id="stat-streak"><span class="stat__v" id="s-streak">0</span><span class="stat__l">Série</span></div>
+        <div class="stat"><span class="stat__v" id="s-best">0</span><span class="stat__l">Record</span></div>
+        <div class="stat"><span class="stat__v" id="s-perfect">0/0</span><span class="stat__l">Parfaites</span></div>
+      </div>
+      <button id="themeToggle" class="icon-btn" type="button" aria-label="Changer de thème"></button>
     </div>
+  </header>
 
-    <div class="header-right">
-      <div class="status" id="status" data-state="loading" role="status" aria-live="polite">Chargement…</div>
-
-      <label class="sr-only" for="modeSelect">Difficulté</label>
-      <select id="modeSelect" class="btn select" title="Facile : pages très célèbres · Difficile : aucun filtre">
+  <section class="ask">
+    <h1>Replace ces événements dans l’<em>ordre chronologique</em></h1>
+    <div class="ask__mode">
+      <label for="modeSelect">Difficulté</label>
+      <select id="modeSelect" class="select" title="Facile : pages très célèbres · Difficile : aucun filtre">
         <option value="easy">Facile</option>
         <option value="normal">Normal</option>
         <option value="hard">Difficile</option>
       </select>
-
-      <button id="validateBtn" class="btn" type="button" disabled>Valider</button>
-      <button id="newGameBtn" class="btn btn-primary" type="button" disabled>Nouvelle partie</button>
-      <button id="themeToggle" class="btn btn-icon" type="button" aria-label="Changer de thème">🌙</button>
     </div>
-  </header>
+  </section>
 
   <main>
     <p id="help" class="sr-only">
       Glissez une carte par sa poignée, ou utilisez les flèches haut et bas pour la déplacer.
       Du plus ancien en haut au plus récent en bas.
     </p>
-
     <div class="board-wrap">
       <div class="rail" id="rail" aria-hidden="true"></div>
       <div id="board" role="list" aria-label="Événements à ordonner"></div>
     </div>
-
-    <div class="result" id="result" role="status" aria-live="polite"></div>
   </main>
 
-  <footer class="footer">
-    Événements : <a href="https://fr.wikipedia.org" target="_blank" rel="noopener">Wikipédia</a> (CC BY-SA)
+  <div class="actions">
+    <div class="status" id="status" data-state="loading" role="status" aria-live="polite">Chargement…</div>
+    <div class="actions__btns">
+      <button id="validateBtn" class="btn" type="button" disabled>Valider</button>
+      <button id="newGameBtn" class="btn btn--ghost" type="button" disabled>Nouvelle partie</button>
+    </div>
+  </div>
+
+  <footer class="foot">
+    Événements : <a href="https://fr.wikipedia.org" target="_blank" rel="noopener noreferrer">Wikipédia</a> (CC BY-SA)
   </footer>
 </div>
 
