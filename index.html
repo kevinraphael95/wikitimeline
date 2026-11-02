@@ -32,6 +32,14 @@
   <header class="top">
     <div class="brand"><span class="brand__mark" aria-hidden="true">W</span>Wiki Timeline</div>
     <div class="top__right">
+      <div class="mode">
+        <label class="sr-only" for="modeSelect">Difficulté</label>
+        <select id="modeSelect" class="select" title="Facile : pages très célèbres · Difficile : aucun filtre">
+          <option value="easy">Facile</option>
+          <option value="normal">Normal</option>
+          <option value="hard">Difficile</option>
+        </select>
+      </div>
       <div class="stats" role="group" aria-label="Statistiques">
         <div class="stat" id="stat-streak"><span class="stat__v" id="s-streak">0</span><span class="stat__l">Série</span></div>
         <div class="stat"><span class="stat__v" id="s-best">0</span><span class="stat__l">Record</span></div>
@@ -43,14 +51,6 @@
 
   <section class="ask">
     <h1>Replace ces événements dans l’<em>ordre chronologique</em></h1>
-    <div class="ask__mode">
-      <label for="modeSelect">Difficulté</label>
-      <select id="modeSelect" class="select" title="Facile : pages très célèbres · Difficile : aucun filtre">
-        <option value="easy">Facile</option>
-        <option value="normal">Normal</option>
-        <option value="hard">Difficile</option>
-      </select>
-    </div>
   </section>
 
   <main>
