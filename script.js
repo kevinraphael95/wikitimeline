@@ -5,16 +5,16 @@
   // CONFIGURATION
   // ============================================================
   const CONFIG = {
-    GAP: 12,                    // Espace entre les cartes (px)
-    CARDS: 5,                   // Cartes par partie
-    ATTEMPTS: { easy: 10, normal: 6, hard: 6 }, // Dates essayées avant d’assouplir
-    SAMPLE: 100,                // Événements analysés pour la popularité
-    BATCH: 50,                  // Max de titres par requête pageviews
-    FETCH_TIMEOUT: 12000,       // ms
-    MIN_YEAR_GAP: 2,            // Écart minimum entre deux années (assoupli en dernier recours)
-    THRESHOLDS: { easy: 30000, normal: 10000, hard: 0 }, // Vues sur 30 jours
-    REORDER_DELAY: 1100,        // ms avant de remettre les cartes dans le bon ordre
-    EDGE_SCROLL: 70             // Zone de défilement auto en bord d’écran (px)
+    GAP: 12,
+    CARDS: 5,
+    ATTEMPTS: { easy: 10, normal: 6, hard: 6 },
+    SAMPLE: 100,
+    BATCH: 50,
+    FETCH_TIMEOUT: 12000,
+    MIN_YEAR_GAP: 2,
+    THRESHOLDS: { easy: 30000, normal: 10000, hard: 0 },
+    REORDER_DELAY: 1100,
+    EDGE_SCROLL: 70
   };
 
   const MODES = ['easy', 'normal', 'hard'];
@@ -30,36 +30,44 @@
   // ============================================================
   // ÉTAT
   // ============================================================
-  let order = [];            // [{ id, text, year, url }] dans l’ordre affiché
+  let order = [];
   let solved = false;
   let loading = false;
-  let cardEls = {};          // id -> élément
+  let cardEls = {};
   let railTicks = [];
   let railLine = null;
   let dragState = null;
   let rafId = null;
   let reorderTimer = null;
   let settleTimers = [];
-  let nextGame = null;       // { mode, promise } : partie préparée en arrière-plan
-  const played = new Set();  // Événements déjà vus pendant la session
+  let nextGame = null;
+  const played = new Set();
 
   // ============================================================
-  // DOM
+  // DOM (Corrigé pour correspondre à ton HTML)
   // ============================================================
   const $ = (id) => document.getElementById(id);
   const root = document.documentElement;
+  
   const themeToggle = $('themeToggle');
   const statusEl = $('status');
-  const statsEl = $('stats');
+  
+  // On cible les éléments individuels des stats comme dans ton HTML
+  const sStreak = $('s-streak');
+  const sBest = $('s-best');
+  const sPerfect = $('s-perfect');
+  
   const boardEl = $('board');
   const railEl = $('rail');
   const validateBtn = $('validateBtn');
   const newGameBtn = $('newGameBtn');
-  const resultEl = $('result');
   const modeSelect = $('modeSelect');
+  
+  // Note : on ne cherche plus 'resultEl' car il n'y a pas de div #result dans ton HTML
+  // Le résultat s'affiche déjà via statusEl
 
   // ============================================================
-  // STOCKAGE (tolérant aux navigateurs qui le bloquent)
+  // STOCKAGE
   // ============================================================
   const store = {
     get(key, fallback) {
@@ -79,9 +87,10 @@
   } catch (e) { /* ignoré */ }
 
   function renderStats() {
-    statsEl.textContent = stats.played === 0
-      ? 'Aucune partie jouée'
-      : `Série : ${stats.streak} · Record : ${stats.best} · ${stats.perfect}/${stats.played} parfaites`;
+    // Mise à jour des éléments individuels
+    if (sStreak) sStreak.textContent = stats.streak;
+    if (sBest) sBest.textContent = stats.best;
+    if (sPerfect) sPerfect.textContent = `${stats.perfect}/${stats.played}`;
   }
 
   function recordResult(perfect) {
@@ -115,7 +124,7 @@
   function setStatus(text, state = 'ready') {
     statusEl.textContent = text;
     statusEl.dataset.state = state;
-    statusEl.title = text; // utile quand le texte est tronqué
+    statusEl.title = text;
   }
 
   function shuffle(arr) {
@@ -140,9 +149,7 @@
     return t.replace(/\.$/, '').trim();
   }
 
-  // Année affichable : -44 → « 44 av. J.-C. »
   const formatYear = (y) => (y < 0 ? `${-y} av. J.-C.` : String(y));
-
   const eventKey = (e) => `${e.year}|${e.title}`;
 
   function isRecurringEvent(text) {
@@ -150,7 +157,6 @@
     return RECURRING_KEYWORDS.some((k) => t.includes(k));
   }
 
-  // L’année apparaît-elle dans la phrase affichée ? (spoiler)
   function leaksYear(e) {
     return new RegExp('\\b' + Math.abs(e.year) + '\\b').test(e.text || '');
   }
@@ -159,7 +165,6 @@
     return !isRecurringEvent(e.text) && !leaksYear(e) && !played.has(eventKey(e));
   }
 
-  // Garde au plus `count` événements dont les années sont espacées d’au moins `minGap`
   function pickSpread(list, count, minGap) {
     const chosen = [];
     for (const e of list) {
@@ -187,7 +192,6 @@
     }
   }
 
-  // On ne garde que l’essentiel de chaque événement (léger à mettre en cache)
   function normalizeEvent(e) {
     const p = e && e.pages && e.pages[0];
     if (!p || !p.title || !Number.isFinite(e.year) || !e.text) return null;
@@ -216,7 +220,7 @@
     } catch (e) { /* ignoré */ }
 
     const data = await fetchJson(`https://fr.wikipedia.org/api/rest_v1/feed/onthisday/events/${mm}/${dd}`);
-    if (!data) return []; // un échec n’est jamais mis en cache
+    if (!data) return [];
 
     const events = (data.events || []).map(normalizeEvent).filter(Boolean);
     eventsCache.set(key, events);
@@ -224,12 +228,8 @@
     return events;
   }
 
-  const viewsCache = new Map(); // titre -> vues sur 30 jours
+  const viewsCache = new Map();
 
-  // Vues sur 30 jours pour une liste de titres (50 max). L'API peut répondre en
-  // PLUSIEURS morceaux (champ "continue") : on suit la suite jusqu'au bout, sinon
-  // des articles sans données seraient comptés à 0 vue. Renvoie null en cas
-  // d'échec : l'appelant ignore alors le filtre au lieu de tout rejeter.
   async function getBatchPageviews(titles) {
     const missing = titles.filter((t) => !viewsCache.has(t));
 
@@ -237,7 +237,7 @@
       const base = 'https://fr.wikipedia.org/w/api.php?action=query&prop=pageviews&pvipdays=30'
         + '&format=json&origin=*&redirects=1&titles=' + encodeURIComponent(missing.join('|'));
       const alias = {};
-      const daily = {}; // titre final -> { date: vues }
+      const daily = {};
       let extra = '';
       let finished = false;
 
@@ -275,19 +275,17 @@
     for (let i = 0; i < sample.length; i += CONFIG.BATCH) chunks.push(sample.slice(i, i + CONFIG.BATCH));
 
     const parts = await Promise.all(chunks.map((c) => getBatchPageviews(c.map((e) => e.title))));
-    if (parts.some((p) => p === null)) return sample; // stats indisponibles : pas de filtre
+    if (parts.some((p) => p === null)) return sample;
 
     const views = Object.assign({}, ...parts);
     return sample.filter((e) => (views[e.title] || 0) >= minViews);
   }
 
-  // Construit une partie complète. Renvoie un tableau de CARDS événements, ou null.
   async function buildGame(mode, report = () => {}) {
     const attempts = CONFIG.ATTEMPTS[mode];
 
     for (let i = 0; i < attempts; i++) {
       const last = i === attempts - 1;
-      // Dernière tentative : on assouplit pour ne jamais bloquer le jeu
       const minViews = last
         ? (mode === 'easy' ? CONFIG.THRESHOLDS.normal : 0)
         : CONFIG.THRESHOLDS[mode];
@@ -309,7 +307,6 @@
     return null;
   }
 
-  // Prépare la prochaine partie pendant que le joueur réfléchit
   function prefetch(mode) {
     if (navigator.connection && navigator.connection.saveData) return;
     nextGame = { mode, promise: buildGame(mode).catch(() => null) };
@@ -319,7 +316,6 @@
   // MISE EN PAGE
   // ============================================================
   function layout(excludeId) {
-    // Lectures groupées, puis écritures : pas de recalcul de mise en page en boucle
     const heights = order.map((item) => (cardEls[item.id] ? cardEls[item.id].offsetHeight : 0));
 
     let y = 0;
@@ -390,7 +386,7 @@
       card.setAttribute('role', 'listitem');
       card.setAttribute('aria-describedby', 'help');
       card.setAttribute('aria-setsize', order.length);
-      card.style.transition = 'none'; // Pas d’animation au premier rendu
+      card.style.transition = 'none';
 
       const grip = document.createElement('div');
       grip.className = 'grip';
@@ -406,7 +402,7 @@
         a.href = item.url;
         a.target = '_blank';
         a.rel = 'noopener noreferrer';
-        a.tabIndex = -1; // activé après validation
+        a.tabIndex = -1;
         a.textContent = item.text;
         title.appendChild(a);
       } else {
@@ -414,7 +410,6 @@
       }
       content.appendChild(title);
 
-      // L’année est à droite de la carte : elle réserve de la largeur, pas de hauteur
       const year = document.createElement('div');
       year.className = 'year';
       year.textContent = formatYear(item.year);
@@ -425,15 +420,12 @@
     });
     boardEl.appendChild(frag);
 
-    // On laisse le navigateur calculer les hauteurs avant de positionner
     requestAnimationFrame(() => {
       layout(null);
       Object.values(cardEls).forEach((el) => { el.style.transition = ''; });
     });
   }
 
-  // Les hauteurs changent quand les polices finissent de charger ou quand la
-  // largeur du plateau change (redimensionnement, rotation du téléphone).
   if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(() => { if (order.length && !dragState) layout(null); });
   }
@@ -446,7 +438,7 @@
   }).observe(boardEl);
 
   // ============================================================
-  // DRAG & DROP (un seul jeu d’écouteurs sur le plateau)
+  // DRAG & DROP
   // ============================================================
   function announcePosition(id) {
     const pos = order.findIndex((o) => o.id === id) + 1;
@@ -457,7 +449,6 @@
     if (!dragState) return;
     const { card, clientY, offsetY } = dragState;
 
-    // Défilement automatique près des bords de l’écran
     const edge = CONFIG.EDGE_SCROLL;
     if (clientY < edge) window.scrollBy(0, -Math.ceil((edge - clientY) / 5));
     else if (clientY > window.innerHeight - edge) window.scrollBy(0, Math.ceil((clientY - (window.innerHeight - edge)) / 5));
@@ -467,9 +458,6 @@
     const t = Math.max(0, Math.min(maxT, clientY - boardRect.top - offsetY));
     card.style.transform = `translateY(${t}px)`;
 
-    // Position cible : on prend l'emplacement le plus proche du haut de la carte,
-    // en ne comptant QUE les autres cartes. Le résultat ne dépend que de la
-    // position du pointeur, donc plus de va-et-vient quand les hauteurs diffèrent.
     const others = order.filter((o) => o.id !== dragState.id);
     let candidate = 0;
     let best = Infinity;
@@ -494,8 +482,6 @@
     const card = e.target.closest('.card');
     if (!card || solved || loading || dragState) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
-    // Au doigt, on ne déplace une carte que par sa poignée : le reste de la
-    // carte reste utilisable pour faire défiler la page.
     if (e.pointerType === 'touch' && !e.target.closest('.grip')) return;
 
     card.setPointerCapture(e.pointerId);
@@ -522,8 +508,6 @@
     cancelAnimationFrame(rafId);
     rafId = null;
 
-    // dragState est libéré tout de suite : un nouveau drag peut démarrer
-    // pendant l’animation de retour.
     const { card, id } = dragState;
     dragState = null;
 
@@ -544,7 +528,6 @@
   boardEl.addEventListener('pointerup', onPointerEnd);
   boardEl.addEventListener('pointercancel', onPointerEnd);
 
-  // --- Clavier : flèches haut / bas sur une carte ---
   boardEl.addEventListener('keydown', (e) => {
     if (solved || loading || dragState) return;
     const card = e.target.closest('.card');
@@ -567,23 +550,9 @@
   // ============================================================
   // VALIDATION
   // ============================================================
-  function showResult(kind, message) {
-    resultEl.className = 'result show ' + kind;
-    resultEl.textContent = message;
-    resultEl.scrollIntoView({ behavior: prefersReducedMotion ? 'auto' : 'smooth', block: 'nearest' });
-  }
+  // J'ai supprimé showResult/hideResult car la div #result n'existe pas. 
+  // L'état est géré directement via setStatus()
 
-  function hideResult() {
-    resultEl.className = 'result';
-    resultEl.textContent = '';
-  }
-
-  resultEl.addEventListener('click', hideResult);
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideResult(); });
-
-  // Plus grand groupe de cartes déjà dans le bon ordre les unes par rapport aux
-  // autres (plus longue suite croissante). Une carte posée trop loin ne fait
-  // donc pas passer toutes les autres en rouge.
   function longestOrderedSet(items) {
     const n = items.length;
     const len = new Array(n).fill(1);
@@ -618,23 +587,22 @@
       cardEls[item.id].classList.add(ok ? 'correct' : 'wrong');
       cardEls[item.id].classList.remove('settling', 'dragging');
       const link = cardEls[item.id].querySelector('a');
-      if (link) link.tabIndex = 0; // les liens deviennent accessibles au clavier
+      if (link) link.tabIndex = 0;
     });
 
     boardEl.classList.add('solved');
-    updateRail(railTicks.map((t) => parseFloat(t.style.top) || 0)); // révèle les repères
+    updateRail(railTicks.map((t) => parseFloat(t.style.top) || 0));
 
     const perfect = correctCount === CONFIG.CARDS;
     recordResult(perfect);
 
+    // Affichage du résultat via le status
     if (perfect) {
-      showResult('win', 'Parfait ! L’ordre est exact.');
+      setStatus('Parfait ! L’ordre est exact.', 'win');
     } else {
-      showResult('lose', `Presque ! ${correctCount} carte(s) sur ${CONFIG.CARDS} dans le bon ordre entre elles.`);
+      setStatus(`Presque ! ${correctCount} carte(s) sur ${CONFIG.CARDS} dans le bon ordre.`, 'lose');
     }
-    setStatus(perfect ? 'Parfait !' : `${correctCount}/${CONFIG.CARDS} bien ordonnées`, 'done');
 
-    // Après un court instant, les cartes se rangent dans le bon ordre
     reorderTimer = setTimeout(() => {
       order = correct;
       layout(null);
@@ -664,7 +632,6 @@
     clearTimeout(reorderTimer);
     settleTimers.forEach(clearTimeout);
     settleTimers = [];
-    hideResult();
     clearBoard();
     window.scrollTo({ top: 0, behavior: prefersReducedMotion ? 'auto' : 'smooth' });
 
@@ -690,7 +657,7 @@
       year: e.year,
       url: e.url
     }));
-    do { items = shuffle(items); } while (isSorted(items)); // jamais déjà dans le bon ordre
+    do { items = shuffle(items); } while (isSorted(items));
     order = items;
 
     render();
